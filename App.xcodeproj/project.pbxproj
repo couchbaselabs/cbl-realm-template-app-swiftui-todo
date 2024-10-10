@@ -21,7 +21,6 @@
 		0DF24FEC2CB7FB15000D1A1C /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF24FEB2CB7FB15000D1A1C /* AuthenticationService.swift */; };
 		68D3DF5A2942677E005209D9 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68D3DF592942677E005209D9 /* Constants.swift */; };
 		911F548827C6A2BC005D4876 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 911F548727C6A2BC005D4876 /* AppConfig.swift */; };
-		912196BE27C6868100407648 /* atlasConfig.plist in Resources */ = {isa = PBXBuildFile; fileRef = 912196BD27C6868100407648 /* atlasConfig.plist */; };
 		913D464B2770E46800ABE7D3 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 913D464A2770E46800ABE7D3 /* App.swift */; };
 		913D464D2770E46800ABE7D3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 913D464C2770E46800ABE7D3 /* ContentView.swift */; };
 		913D464F2770E46A00ABE7D3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 913D464E2770E46A00ABE7D3 /* Assets.xcassets */; };
@@ -65,7 +64,6 @@
 		0DF24FEB2CB7FB15000D1A1C /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		68D3DF592942677E005209D9 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		911F548727C6A2BC005D4876 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
-		912196BD27C6868100407648 /* atlasConfig.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = atlasConfig.plist; sourceTree = "<group>"; };
 		913D46472770E46800ABE7D3 /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		913D464A2770E46800ABE7D3 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		913D464C2770E46800ABE7D3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -159,7 +157,6 @@
 			children = (
 				913D46502770E46A00ABE7D3 /* Preview Content */,
 				913D464E2770E46A00ABE7D3 /* Assets.xcassets */,
-				912196BD27C6868100407648 /* atlasConfig.plist */,
 				0D6BECCF2CB046ED007B5F14 /* capellaConfig.plist */,
 				0DF24FDD2CB42B37000D1A1C /* Data */,
 				0DF24FDC2CB42B0F000D1A1C /* Models */,
@@ -262,7 +259,6 @@
 				913D46522770E46A00ABE7D3 /* Preview Assets.xcassets in Resources */,
 				913D464F2770E46A00ABE7D3 /* Assets.xcassets in Resources */,
 				0D6BECD02CB046ED007B5F14 /* capellaConfig.plist in Resources */,
-				912196BE27C6868100407648 /* atlasConfig.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
