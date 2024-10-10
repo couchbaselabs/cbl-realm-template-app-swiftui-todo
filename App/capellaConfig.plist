@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>endpointUrl</key>
+	<string>wss://xxxxxx.apps.cloud.couchbase.com:4984/tasks</string>
+	<key>capellaUrl</key>
+	<string>https://cloud.capella.com</string>
+</dict>
+</plist>
