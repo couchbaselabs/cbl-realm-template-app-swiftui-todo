@@ -10,6 +10,12 @@ This repository provides a converted version of the application using Couchbase 
 
 Some UI changes were made to remove wording about Realm and replaced with Couchbase.
 
+# App Overview
+
+The following diagram shows the flow of the application
+
+![App Flow](Swift-Todo-App-Overview.png)
+
 # Capella Configuration
 
 Before running this application, you must have [Couchbase Capella App Services](https://docs.couchbase.com/cloud/get-started/configuring-app-services.html) set up.  Instructions for setting up Couchbase Capella App Services and updating the configuration file can be found in the [Capella.md](./Capella.md) file in this repository.  Please ensure you complete these steps first.
