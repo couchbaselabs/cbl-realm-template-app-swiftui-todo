@@ -7,8 +7,6 @@ struct OpenDatabaseView: View {
     @EnvironmentObject var itemsViewModel: ItemsViewModel
     @EnvironmentObject var viewModel: OpenDatabaseViewModel
 
-    // We must pass the user, so we can set the user.id when we create Item objects
-    @State var user: User
     @State var showMyItems = true
     @State var isInOfflineMode = false
     
@@ -21,7 +19,6 @@ struct OpenDatabaseView: View {
             case .open:
                 // The Database is open and ready for use.  Show the Items view.
                 ItemsView(
-                    user: user,
                     showMyItems: $showMyItems,
                     isInOfflineMode: $isInOfflineMode,
                     leadingBarButton: AnyView(LogoutButton()))

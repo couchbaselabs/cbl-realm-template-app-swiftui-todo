@@ -1,45 +1,40 @@
-﻿# Conversion Example of MongoDb Atlas Device Sync to Couchbase Lite for SwiftUI Developers 
-
+﻿# Conversion Example of MongoDb Atlas Device Sync to Couchbase Lite for SwiftUI Developers
 The original version of this [application](https://github.com/mongodb/template-app-swiftui-todo)  was built with the [MongoDb Atlas Device SDK for SwiftUI](https://www.mongodb.com/docs/atlas/device-sdks/sdk/swift/swiftui/) and [Atlas Device Sync](https://www.mongodb.com/docs/atlas/app-services/sync/).  
 
-This repository provides a converted version of the application using Couchbase Mobile ([Couchbase Lite for Swift SDK](https://docs.couchbase.com/couchbase-lite/current/swift/gs-prereqs.html) along with [Capella App Services](https://docs.couchbase.com/cloud/app-services/index.html).  
+This repository provides a converted version of the application using [Couchbase Lite for Swift SDK](https://docs.couchbase.com/couchbase-lite/current/swift/gs-prereqs.html) along with [Capella App Services](https://docs.couchbase.com/cloud/app-services/index.html).  
 
 > **NOTE**
->The original application is a basic To Do list.  The original source code has it's own opinionated way of implementing an SwiftUI application and communicating between different layers. The Realm SDK provides a very specific library for SwiftUI, while Couchbase Lite provides a Swift SDK.  This conversion is by no means a best practice for SwiftUI development or a show case on how to properly communicate between layers of an application.  It's more of an example of some of the process that a developer would have to go through to convert an application from one SDK to another.
+>The original application is a basic To-Do list, and its source code follows a specific approach for implementing a SwiftUI application and managing communication between layers. While the Realm SDK offers a library tailored for SwiftUI, Couchbase Lite provides a Swift SDK. In the original code, many of the Realm interactions were handled directly within the `View`. In this conversion, we’ve moved business logic and state management to a `ViewModel`pattern for a clearer separation of concerns.
+>
+>This conversion is by no means a best practice for SwiftUI development or a showcase on how to properly communicate between layers of an application.  It's more of an example of some of the process that a developer would have to go through to convert an application from one SDK to another.
 >
 
 Some UI changes were made to remove wording about Realm and replaced with Couchbase.
 
-# App Overview
+# Capella Configuration
+Before running this application, make sure you have [Couchbase Capella App Services](https://docs.couchbase.com/cloud/get-started/configuring-app-services.html) set up.  
+You can find detailed instructions for setting up Couchbase Capella App Services and updating the configuration file in the [Capella.md](./Capella.md) file located in this repository. Be sure to complete these steps before proceeding.
 
+# App Overview
 The following diagram shows the flow of the application
 
 ![App Flow](Swift-Todo-App-Overview.png)
 
-# Capella Configuration
-
-Before running this application, you must have [Couchbase Capella App Services](https://docs.couchbase.com/cloud/get-started/configuring-app-services.html) set up.  Instructions for setting up Couchbase Capella App Services and updating the configuration file can be found in the [Capella.md](./Capella.md) file in this repository.  Please ensure you complete these steps first.
-
 # SwiftUI App Conversion 
-
 Several files were changed or added in the conversion process. 
 
 ## Package Dependencies 
-The app Package Dependicies were updated, removing the Realm and Realm Database frameworks.  The CouchbaseLiteSwift framework was added to the project.  The [Couchbase Lite documentation](https://docs.couchbase.com/couchbase-lite/current/swift/gs-install.html#lbl-install-tabs) covers the various methods for adding the CouchbaseLiteSwift library to a new or existing project.
-
+The app Package Dependencies were updated, removing the Realm and Realm Database frameworks.  The CouchbaseLiteSwift framework was added to the project.  The [Couchbase Lite documentation](https://docs.couchbase.com/couchbase-lite/current/swift/gs-install.html#lbl-install-tabs) covers the various methods for adding the CouchbaseLiteSwift library to a new or existing project.  In this project we used Swift Package Manager (SPM).
 
 ## App Services Configuration File
-
 The original source code had the configuration for Atlas App Services stored in the atlasConfig.plist file located in the App folder.  This file was removed and the configuration for Capella App Services was added in the [capellaConfig.plist]() file. 
 
 You will need to modify this file to add your Couchbase Capella App Services endpoint URL, as outlined in the [Capella setup instructions](./Capella.md).
 
 ##  realmSwiftUIApp changes and CBLiteApp
-
-
 The original source code had the SwiftUI.App [Application](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/App.swift#L4) inheriting from a custom realmSwiftUIApp that creates a local RMLApp instance app.
 
-The first major change was to the main app, which was to switch out the global app varible to a new classed called [CBLApp](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/CBLApp.swift#L3). 
+The first major change was to the main app, which was to switch out the global app variable to a new classed called [CBLApp](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/CBLApp.swift#L3). 
 
 ```swift
 let appConfig = loadAppConfig()
@@ -51,21 +46,20 @@ struct todoSwiftUIApp: SwiftUI.App {
 }
 ```
 
-The local app variable is used to reference features in the Realm SDK, such as authentication and the currently authenticated user. Since this is defined within the Application class, it effectively becomes a global variable for the entire app. This approach requires developers to update most of the code that references the app variable. 
+The local app variable is used to reference features in the Realm SDK, such as authentication and the currently authenticated user. Since this is defined within the Application class, it effectively becomes a global variable for the entire app. This approach requires developers to update most of the code that references the app variable.  To limit the amount of code required to change, the current authenticated user is tracked in CBLApp. 
 
 
 ## Authentication 
-
 The [Couchbase Lite SDK](https://docs.couchbase.com/couchbase-lite/current/android/replication.html#lbl-user-auth)  manages authentication differently than the [Mongo Realm SDK](https://www.mongodb.com/docs/atlas/device-sdks/sdk/kotlin/users/authenticate-users/#std-label-kotlin-authenticate).  Code was added to deal with these differences.   
 
-### Handling Authencation of the App
+### Handling Authentication of the App
 
-The authentication of the app is called from a new [AuthenticationService](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/AuthenticationService.swift#L13) that was added to the app to handle authentication.  
+The authentication of the app is called from a new [AuthenticationService](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/AuthenticationService.swift#L13) that was added to the app.
 
-Authentication is done via the Couchbase Capella App Services Endpoint public [REST API](https://docs.couchbase.com/cloud/app-services/references/rest_api_admin.html) in the Authentication Service login function, which is called from a new LoginViewModel [login function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LoginViewModel.swift#L19) that was added to the application, validating that the username and password provided can authenticate with the endpoint (or throwing an exception if they can't).
+The AuthenticationService handles authentication via the Couchbase Capella App Services Endpoint public [REST API](https://docs.couchbase.com/cloud/app-services/references/rest_api_admin.html) in its login function.  A new LoginViewModel [login function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LoginViewModel.swift#L19) was added to the application, calling the AuthenticationService and validating that the username and password provided can authenticate with the endpoint (or throwing an exception if they can't).
 
-> [!NOTE]
->Registering new users is out of scope of the conversion, so this functionaliy was removed.  Capella App Services allows the creating of Users per endpoint via the [UI](https://docs.couchbase.com/cloud/app-services/user-management/create-user.html#usermanagement/create-app-role.adoc) or the [REST API](https://docs.couchbase.com/cloud/app-services/references/rest_api_admin.html).  For large scale applications it's highly recommended to use a 3rd party [OpendID Connect](https://docs.couchbase.com/cloud/app-services/user-management/set-up-authentication-provider.html) provider. 
+> **NOTE**
+>Registering new users is out of scope of the conversion, so this functionaliy was removed.  Capella App Services allows the creating of Users per endpoint via the [UI](https://docs.couchbase.com/cloud/app-services/user-management/create-user.html#usermanagement/create-app-role.adoc) or the [REST API](https://docs.couchbase.com/cloud/app-services/references/rest_api_admin.html).  For large scale applications, it's highly recommended to use a 3rd party [OpendID Connect](https://docs.couchbase.com/cloud/app-services/user-management/set-up-authentication-provider.html) provider. 
 >
 
 ### Authentication Exceptions
@@ -80,23 +74,27 @@ The Couchbase Lite SDK doesn't provide a user object for tracking the authentica
 
 ## Updating Item Domain Model
 
-The [Item](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Models/Item.swift#L22) file was modified to remove the Realm annotations and to refactor some properties to meet standard Swift conventions.
+The [Item](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Models/Item.swift#L22) file was modified to remove the Realm annotations and to refactor some properties to meet standard Swift conventions for serialization.
 
 The Item class was changed to support the Codable and Identifiable protocols. The Swift serialization library allows the conversion of the class to a JSON string for storage in Couchbase Lite, so changes were made to the class to make it serializable by the Swift serialization library.
 
 Finally, a [ItemDAO](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Models/Item.swift#L3) (Data Access Object) was created to help with the deserialization of the Query Results that come back from a SQL++ QueryChange object.
 
-## Updating Sync Repository
+## Database Service 
 
-A heavy amount of the conversion code was done in the [SyncRepository](https://github.com/couchbaselabs/cbl-realm-template-app-kotlin-todo/blob/main/app/src/main/java/com/mongodb/app/data/SyncRepository.kt#L26) file.  
-
-### Implementation of DatabaseService
-
-A new [DatabaseService](https://github.com/couchbaselabs/cbl-realm-template-app-kotlin-todo/blob/main/App/Data/DatabaseService.swift#L15) class was added to the Data folder to handle interactions with the Couchbase Lite Database.  
+A new [DatabaseService](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift) was created to handle interactions between the Couchbase Lite Database, Collection, and Replicator and the rest of the application.  
 
 ### Initialize Couchbase Lite Database and Replication Configuration
 
-The [DatabaseService ininitializeDatabase function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift#L78) implements the initalization of the Database and the creation of the data.items collection.  
+The DatabaseService [ininitializeDatabase](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift#L78) function handles the following tasks:
+
+- Initalization of the Database
+- Creation of the Collection
+- Creation of Indexes
+- Creation of Cached Queries
+- Setup of the Replicator.  
+
+The following code snippet creates the database file and the `data.tasks` collection.
 
 ```swift
  self.database = try Database(name: databaseName)
@@ -122,7 +120,7 @@ try collection.createIndex(
 ```
 
 #### Cached Query Setup 
-Next, two basic queries for the application are created.  One to get the current users tasks and one to get all tasks. Queries are compiled when created from the `db.createQuery` function.  By initializing the query when the service is intialized, we can use the query later in the application without having to recompile the query each time the setTasksListChangeObserver function is run. 
+Next, two basic queries for the application are created:  One to get the current users tasks and one to get all tasks. Queries are compiled when created from the `db.createQuery` function.  By initializing the query when the service is intialized, we can use the query later in the application without having to recompile the query each time the setTasksListChangeObserver function is run. 
 
 ```swift
  //create cache queries used for LiveQuery
@@ -134,7 +132,7 @@ queryString.append("ORDER BY META().id ASC")
 self.queryMyTasks = try db.createQuery(queryString)
 ```
 
-Caching queries aren't required, but can save memory and CPU time if the same query is run multiple times. 
+Caching queries aren't required, but can save on resources if the same query is run multiple times. 
 
 #### Replicator Setup 
 Next the [Replication Configuration](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift#L118) is created using the Endpoint URL that is provided from the resource file described earlier in this document.  The configuration is setup in a [PULL_AND_PUSH](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-sync) configuration which means it will pull changes from the remote database and push changes to Capella App Services. By setting continuous to true the replicator will continue to listen for changes and replicate them.  
@@ -145,7 +143,7 @@ config.replicatorType = .pushAndPull
 config.continuous = true
 ```
 
-Authentication is added to only sync information based on the current authenticated user.
+Authentication to App Services is added to  sync information based on the current authenticated user.
 
 ```swift
 let auth = BasicAuthenticator(
@@ -172,13 +170,13 @@ self._replicatorStatusToken = self._replicator?.addChangeListener
 })
 ```
 
-> [!NOTE]
+> **INFORMATION**
 >Swift Developers should review the [Couchbase Lite SDK documentation for Swift](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#introduction) prior to making decisions on how to setup the replicator.
 >
 
 ### addTask function 
 
-The [addTask method](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift#L176) was  implemented to add a task to the CouchbaseLite Database using JSON serialization.  The method is shown below:
+The [addTask function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift#L176) was created to add a task to the CouchbaseLite Database using JSON serialization.  The method is shown below:
 
 ```swift
 guard let collection = taskCollection
@@ -204,7 +202,7 @@ The task is serialized into a JSON string using the Swift serialization library 
 
 ### close method
 
-The close method is used to remove the Replication Status change listener, stop replication, and then close the database.  This will be called when the user logs out from the application.
+The close method is used to remove any query listeners, the replication status change listener, stop replication, and then close the database.  This will be called when the user logs out from the application making sure if the application is used by multiple uses to close out all resources before another user logs into the application.
 
 ```swift
 func close() {
@@ -235,31 +233,163 @@ To further harden the security, the App Service sync script could check the owne
 
 In this conversion, the logic of controlling security was done in the DatabaseService class.
 
+```swift
+ func toggleIsComplete(item: Item, value: Bool){
+ do {
+  guard let collection = taskCollection
+  else {
+   app.error = InvalidStateError(message: "taskCollection is not available.")
+   return
+  }
+  guard let doc = try collection.document(id: item.id)
+  else {
+   app.error = InvalidStateError(message: "document not found")
+   return
+  } 
+  let ownerId = doc.string(forKey: "ownerId")
+  if (ownerId != item.ownerId){
+    throw InvalidStateError(message: "document does not belong to current user")
+  }
+  let mutableDoc = doc.toMutable()
+  mutableDoc.setBoolean(value, forKey: "isComplete")
+  try collection.save(document: mutableDoc)
+  } catch {
+    app.error = error
+ }
+}
+```
 ### deleteTask method
 
 The deleteTask method removes a task from the database.  This is done by retrieving the document from the database using the `collection.document` function and then calling the collection `delete` function.  A security check was added so that only the owner of the task can delete the task.
 
 ```swift
-//todo add code example
+func deleteTask(item: Item){
+  do {
+    guard let collection = taskCollection
+    else {
+      app.error = InvalidStateError(message: "taskCollection is not available.")
+      return
+    }
+    guard let doc = try collection.document(id: item.id)
+    else {
+      app.error = InvalidStateError(message: "document not found")
+      return
+    }
+    let ownerId = doc.string(forKey: "ownerId")
+    if (ownerId != item.ownerId){
+       throw InvalidStateError(message: "document does not belong 
+       to current user")
+    }
+    try collection.delete(document: doc)
+    } catch {
+      app.error = error
+   }
+}
 ```
-
-
 ### setTasksListChangeObserver function 
 
-Couchbase Lite doesn't support the various patterns that Realm provides for tracking changes in a Realm.  Instead Couchbase Lite has an API called [LiveQuery](https://docs.couchbase.com/couchbase-lite/current/swift/query-live.html#activating-a-live-query)
+Couchbase Lite doesn't support the various patterns that Realm provides for tracking changes in a Realm.  Instead Couchbase Lite has the [LiveQuery](https://docs.couchbase.com/couchbase-lite/current/swift/query-live.html#activating-a-live-query) API.  A live query is a query that, once activated, remains active and monitors the database for changes; refreshing the result set whenever a change occurs.  Unlike Realm, when a change is detected, the entire query is re-run and the results are updated.   
 
-Couchbase Lite has a different way of handing replication and security than the Atlas Device SDK [Subscription API](https://www.mongodb.com/docs/atlas/device-sdks/sdk/kotlin/sync/subscribe/#subscriptions-overview).  Because of this, some of the code has been changed to handle when filtering out the current user tasks vs all tasks in the collection.
+Couchbase Lite has a different way of handing replication and security than the Atlas Device SDK [Subscription API](https://www.mongodb.com/docs/atlas/device-sdks/sdk/kotlin/sync/subscribe/#subscriptions-overview).  Because of this, two queries were created to pull the information from the database based on the users selection.  One query is for all tasks and the other is for the current users tasks.  The setTasksListChangeObserver function is used to setup the LiveQuery and then call the completion handler with the results of the query so that the ViewModel can update the observed array of items. 
 
-> [!IMPORTANT]
+```swift 
+  func setTasksListChangeObserver(subscriptionType: String, observer: (([Item]?) -> Void)?) {
+
+taskLiveQueryObserver = observer
+var query:Query? = nil
+        
+if (taskLiveQueryObserver != nil) {
+ //if existing query listener is running, remove it
+ if let token =  queryListenerToken {
+  token.remove()
+ }
+ //figure out which query to run
+ if (subscriptionType == Constants.allItems){
+  query = queryAllTasks
+ } else {
+  query = queryMyTasks
+ }
+ if let runQuery = query {
+  queryListenerToken = runQuery
+  .addChangeListener({ [self] ( change ) in
+   var items: [Item] = []
+   if let results = change.results {
+     for result in results {
+      let json = result.toJSON()
+      if let itemDao = ItemDao(json: json){
+       items.append(itemDao.item)
+      } else {
+       print("error deserializing item from query")
+      }
+    }
+    taskLiveQueryObserver?(items)
+    }
+   })
+  }
+ } 
+}
+```
+
+> **IMPORTANT**
 >For a production mobile app, make sure you read the Couchbase Capella App Services [channels](https://docs.couchbase.com/cloud/app-services/channels/channels.html) and [roles](https://docs.couchbase.com/cloud/app-services/user-management/create-app-role.html) documentation to understand the security model it provides. 
 >
 >The Couchbase Lite SDK [Replication Configuration](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-repl) API also supports [filtering of channels](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-chan) to limit the data that is replicated to the device. 
 
-### TODO Finish the documenation
+### toggleIsComplete function 
+The toggleIsComplete function is used to update a task. This is done by retrieving the document from the database using the collection.getDocument method and then updating the document with the new value for the isComplete property. A security check was added so that only the owner of the task can update the task.  The document is then saved back to the collection.
+
+Swift serialization could have been used to perform this update, but is inefficient as only a single property was updated and seralization of the entire object would cost more resources.  
+
+```swift
+func toggleIsComplete(item: Item, value: Bool){
+ do {
+  guard let collection = taskCollection
+  else {
+    app.error = InvalidStateError(message: "taskCollection is not available.")
+    return
+  }
+  guard let doc = try collection.document(id: item.id)
+  else {
+    app.error = InvalidStateError(message: "document not found")
+    return
+  }
+  let ownerId = doc.string(forKey: "ownerId")
+  if (ownerId != item.ownerId){
+    throw InvalidStateError(message: "document does not belong to current user")
+  }
+  let mutableDoc = doc.toMutable()
+  mutableDoc.setBoolean(value, forKey: "isComplete")
+  try collection.save(document: mutableDoc)
+  } catch {
+    app.error = error
+  }
+}
+```
+## Other Application Changes
+### Rename OpenRealmView 
+The [OpenRealmView](https://github.com/mongodb/template-app-swiftui-todo/blob/main/App/Views/OpenRealmView.swift) from the original repo was renamed to [OpenDatabaseView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/OpenDatabaseView.swift#L4).
+
+### Moving UI Components to Components folder
+The following UI components were moved to the Components folder inside of the View folder for better organization of the code:
+- ItemDetail
+- ItemList
+- ItemRow
+- LogoutButton
+
+### New ViewModels
+Several new ViewModels were added to the application to interact between the View and Database Service.  In most cases, state management was moved from the View to the ViewModel.
+
+- [CreateItemViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/CreateItemViewModel.swift) - handles the creation of a new task from the [CreateItemView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/CreateItemView.swift).
+- [ItemDetailViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/ItemDetailViewModel.swift) - handles updating a task from the [ItemDetail](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/ItemDetail.swift) component.
+- [ItemsViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/ItemsViewModel.swift) - handles calling live query for getting the array of task for the [ItemsView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/ItemsView.swift) to render.  It also handles deleting of tasks.
+- [LoginViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LoginViewModel.swift) - handles authenticating of the user from the [LoginView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/LoginView.swift) and calling the initalization of the database.
+- [LogoutViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LogoutViewModel.swift) - handles logging the user out of the application including closing all database resources from the [LogoutButton](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/LogoutButton.swift).  
+- [OpenDatabaseViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/OpenDatabaseViewModel.swift) - used for stopping and starting replication to simulate the user going offline and online which is done via a button in the [OpenDatabaseView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/OpenDatabaseView.swift#L50). 
+
 
 More Information
 ----------------
-- [Couchbase Lite for Android documentation](https://docs.couchbase.com/couchbase-lite/current/android/quickstart.html)
+- [Couchbase Lite for Swift documentation](https://docs.couchbase.com/couchbase-lite/current/swift/quickstart.html)
 - [Couchbase Capella App Services documentation](https://docs.couchbase.com/cloud/app-services/index.html)
 
 

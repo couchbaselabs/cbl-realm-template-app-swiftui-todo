@@ -251,6 +251,10 @@ actor DatabaseService {
                 app.error = InvalidStateError(message: "document not found")
                 return
             }
+            let ownerId = doc.string(forKey: "ownerId")
+            if (ownerId != item.ownerId){
+                throw InvalidStateError(message: "document does not belong to current user")
+            }
             try collection.delete(document: doc)
         } catch {
             app.error = error
@@ -361,6 +365,7 @@ actor DatabaseService {
     /// - SeeAlso: `deleteTask(item:)`, `addTask(taskSummary:)`
     func toggleIsComplete(item: Item, value: Bool){
         do {
+            
             guard let collection = taskCollection
             else {
                 app.error = InvalidStateError(message: "taskCollection is not available.")
@@ -370,6 +375,10 @@ actor DatabaseService {
             else {
                 app.error = InvalidStateError(message: "document not found")
                 return
+            }
+            let ownerId = doc.string(forKey: "ownerId")
+            if (ownerId != item.ownerId){
+                throw InvalidStateError(message: "document does not belong to current user")
             }
             let mutableDoc = doc.toMutable()
             mutableDoc.setBoolean(value, forKey: "isComplete")

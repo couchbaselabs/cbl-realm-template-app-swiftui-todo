@@ -2,6 +2,9 @@ import Foundation
 
 class ItemsViewModel : ObservableObject {
     @Published var items: [Item] = []
+    @Published var isInCreateItemView = false
+    @Published var showOfflineNote = false
+    
     let service: DatabaseService
     
     init(_ service:DatabaseService) {

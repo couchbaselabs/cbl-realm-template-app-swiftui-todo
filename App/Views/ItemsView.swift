@@ -2,25 +2,19 @@ import SwiftUI
 
 /// Use views to see a list of all Items, add or delete Items, or logout.
 struct ItemsView: View {
-    @State var user: User
     @Binding var showMyItems: Bool
     @Binding var isInOfflineMode: Bool
     var leadingBarButton: AnyView?
     
-    @State var itemSummary = ""
-    @State var isInCreateItemView = false
-    @State var showOfflineNote = false
-    
     @EnvironmentObject var errorHandler: ErrorHandler
     @EnvironmentObject var viewModel: ItemsViewModel
-    
     
     var body: some View {
         NavigationView {
             ZStack {
                 VStack {
-                    if isInCreateItemView {
-                        CreateItemView(isInCreateItemView: $isInCreateItemView, user: user)
+                    if viewModel.isInCreateItemView {
+                        CreateItemView(isInCreateItemView: $viewModel.isInCreateItemView)
                     }
                     else {
                         Toggle("Show Only My Tasks", isOn: $showMyItems).padding()
@@ -31,9 +25,9 @@ struct ItemsView: View {
                                     trailing: HStack {
                     Button {
                         if !isInOfflineMode {
-                            showOfflineNote = true
+                            viewModel.showOfflineNote = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                self.showOfflineNote = false
+                                viewModel.showOfflineNote = false
                             }
                         }
                         isInOfflineMode = !isInOfflineMode
@@ -42,12 +36,12 @@ struct ItemsView: View {
                         isInOfflineMode ? Image(systemName: "wifi.slash") : Image(systemName: "wifi")
                     }
                     Button {
-                        isInCreateItemView = true
+                        viewModel.isInCreateItemView = true
                     } label: {
                         Image(systemName: "plus")
                     }
                 })
-                if showOfflineNote {
+                if viewModel.showOfflineNote {
                     RoundedRectangle(cornerRadius: 16)
                         .foregroundColor(Color(UIColor.lightGray))
                         .frame(width: 250, height: 150, alignment: .bottom)

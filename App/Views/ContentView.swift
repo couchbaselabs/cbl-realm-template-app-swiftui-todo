@@ -7,8 +7,8 @@ struct ContentView: View {
     @ObservedObject var app: CBLApp
 
     var body: some View {
-        if let user = app.currentUser {
-            OpenDatabaseView(user: user)
+        if app.currentUser != nil {
+            OpenDatabaseView()
                 .environmentObject(errorHandler)
                 .environmentObject(viewModel)
         } else {
