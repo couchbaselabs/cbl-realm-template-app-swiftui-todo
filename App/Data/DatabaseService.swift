@@ -40,6 +40,41 @@ actor DatabaseService {
        
     }
     
+    /// Initializes the database for the specified user, sets up collections, indexes, queries, and replication.
+    ///
+    /// This function creates and configures a database using the sanitized username as the database name. It sets up
+    /// the necessary collections, indexes, and queries used for live queries, and initializes the replicator to
+    /// sync data with a remote endpoint. The function also manages replication status and updates the app’s
+    /// `databaseState` accordingly.
+    ///
+    /// - Parameter user: The `User` object containing the credentials and username to be used for the database name
+    ///   and authentication in the replication process.
+    ///
+    /// - Important: The function sanitizes the username by replacing certain characters (`@` and `.`) with hyphens (`-`)
+    ///   to create a valid database name. Ensure the username is correctly formatted to avoid unexpected errors.
+    ///
+    /// - Throws: An error if there is an issue opening the database, creating the collection, setting up queries,
+    ///   or configuring the replicator.
+    ///
+    /// - Note: The function updates the app’s `databaseState` to reflect the current status (e.g., `.notInitialized`, `.open`, or `.error`).
+    ///   These updates are dispatched on the main thread to ensure UI responsiveness.
+    ///
+    /// ### Function Behavior:
+    /// 1. **Database Initialization**:
+    ///    - The function attempts to open or create a database using the sanitized username.
+    /// 2. **Collection Setup**:
+    ///    - It creates or retrieves a collection named `_taskCollectionName` in the scope `_scopeName`.
+    /// 3. **Index Creation**:
+    ///    - An index is created on the `"ownerId"` field of the collection for efficient querying.
+    /// 4. **Query Setup**:
+    ///    - Queries are created for fetching all tasks and tasks belonging to the user using live queries.
+    /// 5. **Replicator Configuration**:
+    ///    - The replicator is configured with the user’s credentials and an endpoint URL from the app’s configuration.
+    ///    - The replicator is set to run continuously, synchronizing data bidirectionally (`pushAndPull`).
+    /// 6. **Replication Listener**:
+    ///    - A listener monitors the replication status and logs changes, updating the UI state as needed.
+    ///
+    /// - SeeAlso: `Database`, `Replicator`, `CollectionConfiguration`, `ValueIndexConfiguration`
     func initializeDatabase(user: User) {
         do {
             

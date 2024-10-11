@@ -1,10 +1,3 @@
-//
-//  AuthenticationService.swift
-//  App
-//
-//  Created by Aaron LaBeau on 10/10/24.
-//
-
 import Foundation
 
 public class AuthenticationService : NSObject {

@@ -11,6 +11,7 @@ func loadAppConfig() -> AppConfig {
     guard let path = Bundle.main.path(forResource: "capellaConfig", ofType: "plist") else {
         fatalError("Could not load atlasConfig.plist file!")
     }
+    
     // Any errors here indicate that the capellaConfig.plist file has not been formatted properly.
     // Expected key/values:
     //      "endpointUrl": "your App Services URL"
