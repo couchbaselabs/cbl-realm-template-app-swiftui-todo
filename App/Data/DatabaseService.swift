@@ -354,27 +354,24 @@ actor DatabaseService {
         self._replicator?.start()
     }
 
-    /// Updates the completion status of a specified task and the summary text in the database.
+    /// Updates an existing task item in the database with the specified completion status and summary.
     ///
-    /// This function toggles the `isComplete` status of the task document associated with the provided `Item`.
-    /// It locates the document in the `taskCollection` using the `id` from the `Item` and updates the `isComplete`
-    /// field with the given boolean value. If the task collection or document is unavailable, an appropriate error
-    /// is set in the app's error state.
+    /// This function performs several checks before updating the task item:
+    /// 1. Verifies that the task collection is available.
+    /// 2. Checks if the document with the specified item ID exists in the collection.
+    /// 3. Ensures that the current user is the owner of the document.
+    ///
+    /// If any of these checks fail, the function sets an appropriate error on the `app` object.
+    /// If all checks pass, the function updates the document's `isComplete` and `summary` fields in the database.
     ///
     /// - Parameters:
-    ///   - item: The `Item` object representing the task to update. The function uses the `id` property of the `Item`
-    ///     to locate the corresponding document in the database.
-    ///   - value: A `Bool` indicating the new state for the `isComplete` field of the task.
+    ///   - item: The `Item` instance representing the task to be updated. It should contain the task's ID and owner information.
+    ///   - isComplete: A `Bool` indicating whether the task is marked as complete.
+    ///   - summary: A `String` containing the updated summary text for the task.
     ///
-    /// - Important: Ensure that the `taskCollection` is properly initialized and accessible before calling this function.
-    ///   If the `taskCollection` or the document does not exist, an `InvalidStateError` is set in the app's error state.
-    ///
-    /// - Throws: An error if there is an issue retrieving or saving the document in the collection.
-    ///
-    /// - SeeAlso: `deleteTask(item:)`, `addTask(taskSummary:)`
+    /// - Throws: If an error occurs during document retrieval or saving, it is caught and passed to the `app.setError` function to handle the error.
     func updateItem(item: Item, isComplete: Bool, summary: String) {
         do {
-
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(

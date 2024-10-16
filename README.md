@@ -233,31 +233,6 @@ To further harden the security, the App Service sync script could check the owne
 
 In this conversion, the logic of controlling security was done in the DatabaseService class.
 
-```swift
- func toggleIsComplete(item: Item, value: Bool){
- do {
-  guard let collection = taskCollection
-  else {
-   app.error = InvalidStateError(message: "taskCollection is not available.")
-   return
-  }
-  guard let doc = try collection.document(id: item.id)
-  else {
-   app.error = InvalidStateError(message: "document not found")
-   return
-  } 
-  let ownerId = doc.string(forKey: "ownerId")
-  if (ownerId != item.ownerId){
-    throw InvalidStateError(message: "document does not belong to current user")
-  }
-  let mutableDoc = doc.toMutable()
-  mutableDoc.setBoolean(value, forKey: "isComplete")
-  try collection.save(document: mutableDoc)
-  } catch {
-    app.error = error
- }
-}
-```
 ### deleteTask method
 
 The deleteTask method removes a task from the database.  This is done by retrieving the document from the database using the `collection.document` function and then calling the collection `delete` function.  A security check was added so that only the owner of the task can delete the task.
@@ -335,37 +310,35 @@ if (taskLiveQueryObserver != nil) {
 >
 >The Couchbase Lite SDK [Replication Configuration](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-repl) API also supports [filtering of channels](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-chan) to limit the data that is replicated to the device. 
 
-### toggleIsComplete function 
-The toggleIsComplete function is used to update a task. This is done by retrieving the document from the database using the collection.getDocument method and then updating the document with the new value for the isComplete property. A security check was added so that only the owner of the task can update the task.  The document is then saved back to the collection.
+### updateItem function 
+The updateItem function is used to update a task. This is done by retrieving the document from the database using the collection.getDocument method and then updating the document with the new value for the isComplete and summary property. A security check was added so that only the owner of the task can update the task.  The document is then saved back to the collection.
 
-Swift serialization could have been used to perform this update, but is inefficient as only a single property was updated and seralization of the entire object would cost more resources.  
+Swift serialization could have been used to perform this update, but is inefficient as only two properties are updated and seralization of the entire object would cost more resources.  
 
 ```swift
-func toggleIsComplete(item: Item, value: Bool){
- do {
-  guard let collection = taskCollection
-  else {
-    app.error = InvalidStateError(message: "taskCollection is not available.")
-    return
-  }
-  guard let doc = try collection.document(id: item.id)
-  else {
-    app.error = InvalidStateError(message: "document not found")
-    return
-  }
-  let ownerId = doc.string(forKey: "ownerId")
-  if (ownerId != item.ownerId){
-    throw InvalidStateError(message: "document does not belong to current user")
-  }
-  let mutableDoc = doc.toMutable()
-  mutableDoc.setBoolean(value, forKey: "isComplete")
-  try collection.save(document: mutableDoc)
-  } catch {
-    app.error = error
-  }
+guard let collection = taskCollection
+else {
+  app.setError(InvalidStateError(
+  message: "taskCollection is not available."))
+  return
 }
+guard let doc = try collection.document(id: item.id)
+else {
+  app.setError(InvalidStateError(message: "document not found"))
+  return
+}
+let ownerId = doc.string(forKey: "ownerId")
+if ownerId != item.ownerId {
+  throw InvalidStateError(
+    message: "document does not belong to current user")
+}
+let mutableDoc = doc.toMutable()
+mutableDoc.setBoolean(isComplete, forKey: "isComplete")
+mutableDoc.setString(summary, forKey: "summary")
+try collection.save(document: mutableDoc)
 ```
 ## Other Application Changes
+
 ### Rename OpenRealmView 
 The [OpenRealmView](https://github.com/mongodb/template-app-swiftui-todo/blob/main/App/Views/OpenRealmView.swift) from the original repo was renamed to [OpenDatabaseView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/OpenDatabaseView.swift#L4).
 
@@ -386,6 +359,8 @@ Several new ViewModels were added to the application to interact between the Vie
 - [LogoutViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LogoutViewModel.swift) - handles logging the user out of the application including closing all database resources from the [LogoutButton](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/LogoutButton.swift).  
 - [OpenDatabaseViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/OpenDatabaseViewModel.swift) - used for stopping and starting replication to simulate the user going offline and online which is done via a button in the [OpenDatabaseView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/OpenDatabaseView.swift#L50). 
 
+### Updated ItemDetail view
+The ItemDetail view was updated to add a button for saving the task updates that are performed on the view.  The new button calls the ItemDetailViewModel to update the task in the database.
 
 More Information
 ----------------
