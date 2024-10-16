@@ -13,8 +13,10 @@ struct ItemList: View {
             }
             .listStyle(InsetListStyle())
             Spacer()
-            Text("Log in or create a different account on another device or simulator to see your list sync in real time")
-                .frame(maxWidth: 300, alignment: .center)
+            Text("Log in on another device or simulator to see your list sync in real time")
+                .padding(.vertical, 20)
+                .padding(.horizontal, 16)
+                .background(.regularMaterial)
             Spacer()
         }
         .navigationBarTitle("Items", displayMode: .inline)

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 class OpenDatabaseViewModel : ObservableObject {
     let service: DatabaseService
     

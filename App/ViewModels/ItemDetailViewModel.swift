@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 class ItemDetailViewModel : ObservableObject {
     let service: DatabaseService
     
@@ -7,9 +8,7 @@ class ItemDetailViewModel : ObservableObject {
         self.service = service
     }
     
-    func toggleIsComplete(item: Item, value: Bool){
-        Task {
-            await service.toggleIsComplete(item: item, value: value)
-        }
+    func updateItem(item: Item, isComplete:Bool, newSummary: String) async {
+        await service.updateItem(item: item, isComplete: isComplete, summary: newSummary)
     }
 }

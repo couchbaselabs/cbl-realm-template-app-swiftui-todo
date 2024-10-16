@@ -18,7 +18,9 @@ struct CreateItemView: View {
                     // To avoid updating too many times and causing Sync-related
                     // performance issues, we only assign to the `newItem.summary`
                     // once when the user presses `Save`.
-                    viewModel.createItem()
+                    Task {
+                        await viewModel.createItem()
+                    }
                     
                     // Now we're done with this view, so set the
                     // ``isInCreateItemView`` variable to false to

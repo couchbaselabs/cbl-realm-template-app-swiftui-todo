@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 class LoginViewModel : ObservableObject {
     let service: DatabaseService
     
@@ -18,23 +19,17 @@ class LoginViewModel : ObservableObject {
     
     func login() async throws  {
         do {
-            DispatchQueue.main.async {
-                self.isLoggingIn = true
-            }
+            self.isLoggingIn = true
             let user = try await AuthenticationService
                 .shared
                 .login(username: email, password: password)
             if let loggedInUser = user {
                 await service.initializeDatabase(user: loggedInUser)
             }
-            DispatchQueue.main.async {
-                app.currentUser = user
-                self.isLoggingIn = false
-            }
+            app.currentUser = user
+            self.isLoggingIn = false
         } catch {
-            DispatchQueue.main.async{
-                self.isLoggingIn = false
-            }
+            self.isLoggingIn = false
             throw error
         }
     }

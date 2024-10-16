@@ -7,7 +7,25 @@ class CBLApp: ObservableObject {
     @Published var databaseState: DatabaseState = .notInitialized
     
     init(configuration: AppConfig){
-        self.appConfig = configuration
+        appConfig = configuration
+    }
+    
+    func setCurrentUser(_ user: User?){
+        DispatchQueue.main.sync {
+            self.currentUser = user
+        }
+    }
+    
+    func setError(_ error: Error?){
+        DispatchQueue.main.sync {
+            self.error = error
+        }
+    }
+    
+    func setDatabaseState(_ state: DatabaseState){
+        DispatchQueue.main.sync {
+            self.databaseState = state
+        }
     }
 }
 

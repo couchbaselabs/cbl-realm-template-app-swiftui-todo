@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 class LogoutViewModel : ObservableObject {
     var isLoggingOut = false
     var errorMessage: ErrorMessage? = nil
@@ -12,9 +13,7 @@ class LogoutViewModel : ObservableObject {
     
     func logout() async {
         await service.close()
-        DispatchQueue.main.async {
-            app.currentUser = nil
-            self.isLoggingOut =  false
-        }
+        app.currentUser = nil
+        self.isLoggingOut =  false
     }
 }
