@@ -14,11 +14,14 @@ public class AuthenticationService : NSObject {
     {
         let httpsUrl = appConfig.endpointUrl.replacingOccurrences(of: "wss://", with: "https://")
         let checkUrl = httpsUrl.replacingOccurrences(of: "/tasks", with: "/")
-        
+            
         guard isUrlReachable(urlString: checkUrl) else {
             throw ConnectionException(message: "Could not reach the endpoint URL.")
         }
-        guard let url = URL(string: httpsUrl) else {
+        //fix issue wit 401 when you don't have / at the end of the REST API
+        let fixedHttpsUrl = httpsUrl + "/"
+        
+        guard let url = URL(string: fixedHttpsUrl) else {
             throw URLError(.badURL)
         }
         let auth = "\(username):\(password)"
@@ -44,8 +47,7 @@ public class AuthenticationService : NSObject {
                     print("Http Reponse: \(httpResponse)")
                     print("Error Response Body: \(responseBody)")
                 }
-                //throw InvalidCredentialsException(message: "Invalid username or password.")
-                return User(username: username, password: password)
+                throw InvalidCredentialsException(message: "Invalid username or password.")
             default:
                 throw NSError(domain: "HTTPError", code: httpResponse.statusCode, userInfo: nil)
         }

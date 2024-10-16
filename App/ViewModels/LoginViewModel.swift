@@ -32,7 +32,9 @@ class LoginViewModel : ObservableObject {
                 self.isLoggingIn = false
             }
         } catch {
-            isLoggingIn = false
+            DispatchQueue.main.async{
+                self.isLoggingIn = false
+            }
             throw error
         }
     }
