@@ -11,6 +11,8 @@ Once you have followed the directions for setting up your cluster, follow the [d
 
 ## Create Scope/Collection for Data Storage
 
+In these directions, we will use the pre-existing `travel-sample` bucket to create a new Scope and Collection for storing data.  This will allow us to store data in a separate Scope and Collection from the travel-sample data that is already present in the bucket.  Advanced users can create a new bucket if they prefer to keep the data separate. 
+
 When you log into Capella you should be at the Operational Cluster tab.  Click on cluster listed in the provided cluster listing.  The Home tab will appear and a listing of options should be presented. 
 
 Click on the Data Tools tab.  Once there, click the "+ Create" button on the left side of the navigation menu to create a new Scope and Collection. 
@@ -57,6 +59,10 @@ Follow these steps to create a second App User with the following information:
 
 - For the App User Name enter: `demo2@example.com`
 - For the App User Password enter:  `P@ssw0rd12`
+
+> [!WARNING]
+> The password is set to `P@ssw0rd12` for demonstration purposes.  This password is in this document, which means anyone on the internet will know it.  You should use a more secure password for your application. 
+>
 
 ## Get App Endpoint Connection Information
 
