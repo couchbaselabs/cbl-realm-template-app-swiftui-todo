@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>endpointUrl</key>
-	<string>wss://xxxxxxxxxxxxx.apps.cloud.couchbase.com:4984/tasks</string>
+	<string>wss://1oooidqy0vm9-t3y.apps.cloud.couchbase.com:4984/tasks</string>
 	<key>capellaUrl</key>
 	<string>https://cloud.capella.com</string>
 </dict>

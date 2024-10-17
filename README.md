@@ -11,7 +11,12 @@ This repository provides a converted version of the application using [Couchbase
 
 Some UI changes were made to remove wording about Realm and replaced with Couchbase.
 
-# Capella Configuration
+# Requirements
+- Xcode 16.0 or later
+- Basic SwiftUI knowledge
+- Understanding of the Realm SDK for SwiftUI
+
+## Capella Configuration
 Before running this application, make sure you have [Couchbase Capella App Services](https://docs.couchbase.com/cloud/get-started/configuring-app-services.html) set up.  
 You can find detailed instructions for setting up Couchbase Capella App Services and updating the configuration file in the [Capella.md](./Capella.md) file located in this repository. Be sure to complete these steps before proceeding.
 
