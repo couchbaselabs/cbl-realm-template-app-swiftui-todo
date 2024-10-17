@@ -46,7 +46,7 @@ The [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-se
 From the App Endpoints list, click on your newly created App Endpoint `tasks`.  From the Access Control and Validation screen, click the linked collections `tasks`.  Follow the following steps:
 
 - Click the Import from File button.  
-- Browse to the repo where you downloaded the code and select the sync.js file located in the root of the project.  Click the Import button to import the Sync Function. 
+- Browse to the repo where you downloaded the code and select the [sync.js](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/sync.js) file located in the root of the project.  Click the Import button to import the Sync Function. 
 - Click the Save button to save the Sync Function.
 - Once the alert is displayed that the Sync Function was saved, click the Settings tab.
 - Click the `Resume App Endpoint` button under the Resume App Endpoint section. 
