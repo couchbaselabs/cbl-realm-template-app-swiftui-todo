@@ -34,7 +34,8 @@ The app Package Dependencies were updated, removing the Realm and Realm Database
 > [!WARNING]
 > Some XCode users have reported issues restoring the SPM dependencies.  If you have issues, you might need to reset your package cache.  When searching the internet on this problem, most “solutions” on the forums revolve around some magical combination:
 > - Cleaning your project (cmd-shift-K)
-> - Deleting Xcode’s DerivedData/, - Running File > Packages > Reset Package Caches
+> - Deleting Xcode’s DerivedData/,
+> - Running File > Packages > Reset Package Caches
 > - Running File > Packages > Resolve Package Versions
 > - Closing and re-opening Xcode.
 >
