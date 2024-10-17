@@ -41,6 +41,8 @@ Click the Create button to create the new App Endpoint.  Note it may take a few 
 
 ## Setup Access Control and Validation
 
+The [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html) script can be used to setup to validate that data is only written by the owner of the task.
+
 From the App Endpoints list, click on your newly created App Endpoint `tasks`.  From the Access Control and Validation screen, click the linked collections `tasks`.  Follow the following steps:
 
 - Click the Import from File button.  
@@ -48,6 +50,8 @@ From the App Endpoints list, click on your newly created App Endpoint `tasks`.  
 - Click the Save button to save the Sync Function.
 - Once the alert is displayed that the Sync Function was saved, click the Settings tab.
 - Click the `Resume App Endpoint` button under the Resume App Endpoint section. 
+
+This script achieves the business rule that only users that own a document can modify it checking the ownerId field and use the [requireUser](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html#handling-modification) function to deny writes from other users.  This helps secure the data from bugs in the application and validate that writes are only performed by the owner of the task.
 
 ## Setup App Endpoint Users
 

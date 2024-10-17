@@ -33,10 +33,10 @@ The app Package Dependencies were updated, removing the Realm and Realm Database
 
 > [!WARNING]
 > Some XCode users have reported issues restoring the SPM dependencies.  If you have issues, you might need to reset your package cache.  When searching the internet on this problem, most “solutions” on the forums revolve around some magical combination:
-- Cleaning your project (cmd-shift-K)
-- Deleting Xcode’s DerivedData/, - Running File > Packages > Reset Package Caches
-- Running File > Packages > Resolve Package Versions
-- Closing and re-opening Xcode.
+> - Cleaning your project (cmd-shift-K)
+> - Deleting Xcode’s DerivedData/, - Running File > Packages > Reset Package Caches
+> - Running File > Packages > Resolve Package Versions
+> - Closing and re-opening Xcode.
 >
 
 ## App Services Configuration File
@@ -238,11 +238,8 @@ In the original app, Realm was handling the security of updates to validate that
 
 Couchbase Lite doesn't have the same security model.  In this application the following approach was taken.  
 
-Custom logic was added to the  application to validate that write access is only allowed by users that own the tasks.  This is independant of how the data is syncronized.  
+The code of the application was modified to validate that write access is only allowed by users that own the tasks and the Data Access and Validation script was added in the Capella setup instructions that limits whom can write updates.
 
-The [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html) script was modified during the Capella setup to validate that data is only written by the owner of the task.  This was achieved by checking the ownerId field and use the [requireUser](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html#handling-modification) function to deny writes from other users.  This helps secure the data from bugs in the application and double validate that writes are only performed by the owner of the task.
-
-The Access Control and Validation script also assigns which users can read the files, which is set to global as in this application all users can see all other users tasks, but can only modify tasks they own.
 
 > [!TIP]
 > Develoeprs can use a Custom [Replication Conflict Resolution](https://docs.couchbase.com/couchbase-lite/current/android/conflict.html#custom-conflict-resolution) to receive the result in your applications code and then revert the change.
