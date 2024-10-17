@@ -3,7 +3,7 @@ The original version of this [application](https://github.com/mongodb/template-a
 
 This repository provides a converted version of the application using [Couchbase Lite for Swift SDK](https://docs.couchbase.com/couchbase-lite/current/swift/gs-prereqs.html) along with [Capella App Services](https://docs.couchbase.com/cloud/app-services/index.html).  
 
-> **NOTE**
+> [!NOTE]
 >The original application is a basic To-Do list, and its source code follows a specific approach for implementing a SwiftUI application and managing communication between layers. While the Realm SDK offers a library tailored for SwiftUI, Couchbase Lite provides a Swift SDK. In the original code, many of the Realm interactions were handled directly within the `View`. In this conversion, we’ve moved business logic and state management to a `ViewModel`pattern for a clearer separation of concerns.
 >
 >This conversion is by no means a best practice for SwiftUI development or a showcase on how to properly communicate between layers of an application.  It's more of an example of some of the process that a developer would have to go through to convert an application from one SDK to another.
@@ -72,7 +72,7 @@ The authentication of the app is called from a new [AuthenticationService](https
 
 The AuthenticationService handles authentication via the Couchbase Capella App Services Endpoint public [REST API](https://docs.couchbase.com/cloud/app-services/references/rest_api_admin.html) in its login function.  A new LoginViewModel [login function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LoginViewModel.swift#L19) was added to the application, calling the AuthenticationService and validating that the username and password provided can authenticate with the endpoint (or throwing an exception if they can't).
 
-> **NOTE**
+> [!NOTE]
 >Registering new users is out of scope of the conversion, so this functionaliy was removed.  Capella App Services allows the creating of Users per endpoint via the [UI](https://docs.couchbase.com/cloud/app-services/user-management/create-user.html#usermanagement/create-app-role.adoc) or the [REST API](https://docs.couchbase.com/cloud/app-services/references/rest_api_admin.html).  For large scale applications, it's highly recommended to use a 3rd party [OpendID Connect](https://docs.couchbase.com/cloud/app-services/user-management/set-up-authentication-provider.html) provider. 
 >
 
@@ -187,7 +187,7 @@ self._replicatorStatusToken = self._replicator?.addChangeListener
   }
 })
 ```
-> [!INFORMATION]
+> [!IMPORTANT]
 >Swift Developers should review the [Couchbase Lite SDK documentation for Swift](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#introduction) prior to making decisions on how to setup the replicator.
 >
 
