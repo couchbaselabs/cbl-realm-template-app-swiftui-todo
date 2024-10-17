@@ -13,8 +13,17 @@ Some UI changes were made to remove wording about Realm and replaced with Couchb
 
 # Requirements
 - Xcode 16.0 or later
-- Basic SwiftUI knowledge
-- Understanding of the Realm SDK for SwiftUI
+- Basic [SwiftUI](https://developer.apple.com/xcode/swiftui/) knowledge
+- Basic [Swift Concurrency](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/) knowledge
+- Understanding of the [Realm SDK for SwiftUI](https://www.mongodb.com/docs/atlas/device-sdks/sdk/swift/swiftui/)
+
+# Fetching the App Source Code
+
+Clone this repository from GitHub using the command line or your Git client:
+
+```bash
+git clone https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo.git
+```
 
 ## Capella Configuration
 Before running this application, make sure you have [Couchbase Capella App Services](https://docs.couchbase.com/cloud/get-started/configuring-app-services.html) set up.  
@@ -157,6 +166,10 @@ config.replicatorType = .pushAndPull
 config.continuous = true
 ```
 
+> [!TIP]
+>The Couchbase Lite SDK [Replication Configuration](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-repl) API also supports [filtering of channels](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-chan) to limit the data that is replicated to the device. 
+>
+
 Authentication to App Services is added to  sync information based on the current authenticated user.
 
 ```swift
@@ -165,11 +178,6 @@ let auth = BasicAuthenticator(
   password: user.password)
 config.authenticator = auth
 ```
-
-> [!TIP]
->The Couchbase Lite SDK [Replication Configuration](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-repl) API also supports [filtering of channels](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-chan) to limit the data that is replicated to the device. 
->
-
 #### Replicator Status 
 A change listener for [Replication Status](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-status) is created and is used to track any errors that might happen. 
 
@@ -241,14 +249,9 @@ Couchbase Lite doesn't have the same security model.  In this application the fo
 
 The code of the application was modified to validate that write access is only allowed by users that own the tasks and the Data Access and Validation script was added in the Capella setup instructions that limits whom can write updates.
 
-
 > [!TIP]
 > Develoeprs can use a Custom [Replication Conflict Resolution](https://docs.couchbase.com/couchbase-lite/current/android/conflict.html#custom-conflict-resolution) to receive the result in your applications code and then revert the change.
 >
-
-
-
-In this conversion, the logic of controlling security was done in the DatabaseService class.
 
 ### deleteTask method
 
@@ -325,8 +328,6 @@ if (taskLiveQueryObserver != nil) {
 > [!IMPORTANT]
 >Developers should review the Couchbase Capella App Services [channels](https://docs.couchbase.com/cloud/app-services/channels/channels.html) and [roles](https://docs.couchbase.com/cloud/app-services/user-management/create-app-role.html) documentation to understand the security model it provides prior to planning an application migration. 
 >
-
-
 
 ### updateItem function 
 The updateItem function is used to update a task. This is done by retrieving the document from the database using the collection.getDocument method and then updating the document with the new value for the isComplete and summary property. A security check was added so that only the owner of the task can update the task.  The document is then saved back to the collection.

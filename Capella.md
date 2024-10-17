@@ -21,10 +21,9 @@ The "Create a Bucket, Scope, and Collection" dialog will appear.  Enter the foll
 
 Click the Create button to create the new Scope and Collection.
 
-
 ## Setup App Services instance
 
-Once you have followed the directions for setting up your cluster, follow the [directions for setting up App Services](https://docs.couchbase.com/cloud/get-started/create-account.html#app-services).
+Once you have followed the directions for setting up your bucket, follow the [directions for setting up App Services](https://docs.couchbase.com/cloud/get-started/create-account.html#app-services).
 
 ## Setup App Services Endpoint
 
@@ -62,9 +61,7 @@ Enter the following information:
 - For the App User Name enter: `demo1@example.com`
 - For the App User Password enter:  `P@ssw0rd12`
 
-Click the chevron for "Configure Access Grants".  Click the "Create App User" button to create the App User.
-
-Follow these steps to create a second App User with the following information:
+Click the "Create App User" button to create the App User.  Follow these steps to create a second App User with the following information:
 
 - For the App User Name enter: `demo2@example.com`
 - For the App User Password enter:  `P@ssw0rd12`
