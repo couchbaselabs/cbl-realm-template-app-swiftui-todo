@@ -31,6 +31,14 @@ Several files were changed or added in the conversion process.
 ## Package Dependencies 
 The app Package Dependencies were updated, removing the Realm and Realm Database frameworks.  The CouchbaseLiteSwift framework was added to the project.  The [Couchbase Lite documentation](https://docs.couchbase.com/couchbase-lite/current/swift/gs-install.html#lbl-install-tabs) covers the various methods for adding the CouchbaseLiteSwift library to a new or existing project.  In this project we used Swift Package Manager (SPM).
 
+> [!WARNING]
+> Some XCode users have reported issues restoring the SPM dependencies.  If you have issues, you might need to reset your package cache.  When searching the internet on this problem, most “solutions” on the forums revolve around some magical combination:
+- Cleaning your project (cmd-shift-K)
+- Deleting Xcode’s DerivedData/, - Running File > Packages > Reset Package Caches
+- Running File > Packages > Resolve Package Versions
+- Closing and re-opening Xcode.
+>
+
 ## App Services Configuration File
 The original source code had the configuration for Atlas App Services stored in the atlasConfig.plist file located in the App folder.  This file was removed and the configuration for Capella App Services was added in the [capellaConfig.plist]() file. 
 
@@ -157,6 +165,10 @@ let auth = BasicAuthenticator(
 config.authenticator = auth
 ```
 
+> [!TIP]
+>The Couchbase Lite SDK [Replication Configuration](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-repl) API also supports [filtering of channels](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-chan) to limit the data that is replicated to the device. 
+>
+
 #### Replicator Status 
 A change listener for [Replication Status](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-status) is created and is used to track any errors that might happen. 
 
@@ -174,8 +186,7 @@ self._replicatorStatusToken = self._replicator?.addChangeListener
   }
 })
 ```
-
-> **INFORMATION**
+> [!INFORMATION]
 >Swift Developers should review the [Couchbase Lite SDK documentation for Swift](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#introduction) prior to making decisions on how to setup the replicator.
 >
 
@@ -202,7 +213,6 @@ if let json = task.toJSON() {
     message: "item could not be serialized")
 }
 ```
-
 The task is serialized into a JSON string using the Swift serialization library and then saved to the collection via the [MutableDocument](https://docs.couchbase.com/couchbase-lite/current/swift/document.html#create-a-document) object.  If an error occurs, the app.error handler is set with the exception that was thrown.
 
 ### close method
@@ -226,15 +236,19 @@ func close() {
 
 In the original app, Realm was handling the security of updates to validate that the current logged in user can update its own tasks, but not other users's task.  When the switch in the application is used to see All Tasks using different subscription, they would have read-only access to the objects.  
 
-Couchbase Lite doesn't have the same security model.  Here are two ways to handle this in conversion:
+Couchbase Lite doesn't have the same security model.  In this application the following approach was taken.  
 
-1. Write custom logic in your application to validate that write access is only allowed by users that own the tasks.  This is independant of how the data is syncronized.
+Custom logic was added to the  application to validate that write access is only allowed by users that own the tasks.  This is independant of how the data is syncronized.  
 
-2. Allow the write to the database even though the user doesn't have access, and then let the replicator sync the changes.  In the App Services [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html) [sync function](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html), check the security there and then deny the write.  Use a Custom [Replication Conflict Resolution](https://docs.couchbase.com/couchbase-lite/current/android/conflict.html#custom-conflict-resolution) to receive the result in your applications code and then revert the change.
+The [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html) script was modified during the Capella setup to validate that data is only written by the owner of the task.  This was achieved by checking the ownerId field and use the [requireUser](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html#handling-modification) function to deny writes from other users.  This helps secure the data from bugs in the application and double validate that writes are only performed by the owner of the task.
 
-If your app is offline for long periods of time, option 2 might not fit your security requirements. Because this app offers an offline mode, option 1 was selected for the security model in the conversion.
+The Access Control and Validation script also assigns which users can read the files, which is set to global as in this application all users can see all other users tasks, but can only modify tasks they own.
 
-To further harden the security, the App Service sync script could check the ownerId field and use the [requireUser](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html#handling-modification) function to deny writes from other users.  This would secure the data from bugs in the application and double validate that writes are only performed by the owner of the task.
+> [!TIP]
+> Develoeprs can use a Custom [Replication Conflict Resolution](https://docs.couchbase.com/couchbase-lite/current/android/conflict.html#custom-conflict-resolution) to receive the result in your applications code and then revert the change.
+>
+
+
 
 In this conversion, the logic of controlling security was done in the DatabaseService class.
 
@@ -310,10 +324,11 @@ if (taskLiveQueryObserver != nil) {
 }
 ```
 
-> **IMPORTANT**
->For a production mobile app, make sure you read the Couchbase Capella App Services [channels](https://docs.couchbase.com/cloud/app-services/channels/channels.html) and [roles](https://docs.couchbase.com/cloud/app-services/user-management/create-app-role.html) documentation to understand the security model it provides. 
+> [!IMPORTANT]
+>Developers should review the Couchbase Capella App Services [channels](https://docs.couchbase.com/cloud/app-services/channels/channels.html) and [roles](https://docs.couchbase.com/cloud/app-services/user-management/create-app-role.html) documentation to understand the security model it provides prior to planning an application migration. 
 >
->The Couchbase Lite SDK [Replication Configuration](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-repl) API also supports [filtering of channels](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-chan) to limit the data that is replicated to the device. 
+
+
 
 ### updateItem function 
 The updateItem function is used to update a task. This is done by retrieving the document from the database using the collection.getDocument method and then updating the document with the new value for the isComplete and summary property. A security check was added so that only the owner of the task can update the task.  The document is then saved back to the collection.
