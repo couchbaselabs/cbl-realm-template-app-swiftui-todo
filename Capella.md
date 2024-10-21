@@ -40,7 +40,7 @@ Click the Create button to create the new App Endpoint.  Note it may take a few 
 
 ## Setup Access Control and Validation
 
-The [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html) script can be used to setup to validate that data is only written by the owner of the task.
+The [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html) is used to setup access control policies for the App Endpoint. In the case of the app, [script](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/sync.js) specifies the policies to ensure that only the task owner can update corresponding task, while allowing a user to read all tasks.
 
 From the App Endpoints list, click on your newly created App Endpoint `tasks`.  From the Access Control and Validation screen, click the linked collections `tasks`.  Follow the following steps:
 
