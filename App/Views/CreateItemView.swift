@@ -1,15 +1,19 @@
 import SwiftUI
 
 struct CreateItemView: View {
-    @EnvironmentObject var viewModel:CreateItemViewModel
-    
+    @Environment(CreateItemViewModel.self) private var viewModel
+
     // We've passed in the ``creatingNewItem`` variable
     // from the ItemsView to know when the user is done
     // with the new Item and we should return to the ItemsView.
     @Binding var isInCreateItemView: Bool
 
     var body: some View {
-        Form {
+        // `@Bindable` is what makes `$viewModel.itemSummary` available for an
+        // `@Observable` object resolved from the environment.
+        @Bindable var viewModel = viewModel
+
+        return Form {
             Section(header: Text("Item Name")) {
                 TextField("New item", text: $viewModel.itemSummary)
             }
@@ -21,12 +25,12 @@ struct CreateItemView: View {
                     Task {
                         await viewModel.createItem()
                     }
-                    
+
                     // Now we're done with this view, so set the
                     // ``isInCreateItemView`` variable to false to
                     // return to the ItemsView.
                     isInCreateItemView = false
-                    
+
                 }) {
                     HStack {
                         Spacer()

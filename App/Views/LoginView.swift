@@ -2,11 +2,15 @@ import SwiftUI
 
 /// Log in or register users using email/password authentication
 struct LoginView: View {
-    @EnvironmentObject var viewModel: LoginViewModel
-    @EnvironmentObject var errorHandler: ErrorHandler
+    @Environment(LoginViewModel.self) private var viewModel
+    @Environment(ErrorHandler.self) private var errorHandler
 
     var body: some View {
-        VStack {
+        // `@Bindable` is what makes `$viewModel.email` / `$viewModel.password`
+        // available for an `@Observable` object resolved from the environment.
+        @Bindable var viewModel = viewModel
+
+        return VStack {
             if viewModel.isLoggingIn {
                 ProgressView()
             }

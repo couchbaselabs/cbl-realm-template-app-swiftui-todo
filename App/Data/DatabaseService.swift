@@ -1,3 +1,4 @@
+import Combine
 import CouchbaseLiteSwift
 import Foundation
 
@@ -19,8 +20,11 @@ actor DatabaseService {
     fileprivate let _taskCollectionName = "tasks"
 
     //replicator management
-    fileprivate var _replicatorStatusToken: ListenerToken? = nil
     fileprivate var _replicator: Replicator? = nil
+
+    //Combine subscriptions owned by this service. `AnyCancellable` cancels its
+    //subscription when it is released, so there are no listener tokens to remove.
+    fileprivate var cancellables = Set<AnyCancellable>()
 
     //database information
     var database: Database? = nil
@@ -30,12 +34,11 @@ actor DatabaseService {
     var queryMyTasks: Query? = nil
     var queryAllTasks: Query? = nil
 
-    //used for query listener (live query)
-    var queryListenerToken: ListenerToken? = nil
-    var taskLiveQueryObserver: (([Item]?) async -> Void)?
-
     init() {
-        Database.log.console.level = .debug
+        //`Database.log` was removed in 4.0. Logging is now configured by
+        //assigning a sink to `LogSinks`; `LogSinks.file` can be set the same way
+        //to persist logs to disk.
+        LogSinks.console = ConsoleLogSink(level: .debug)
     }
 
     /// Initializes the database for the specified user, sets up collections, indexes, queries, and replication.
@@ -98,11 +101,22 @@ actor DatabaseService {
                         withName: "idxTasksOwnerId", config: indexConfig)
 
                     //create cache queries used for LiveQuery
-                    var queryString = "SELECT * FROM data.tasks as item "
-                    self.queryAllTasks = try db.createQuery(queryString)
+                    //
+                    //`meta().id AS id` is selected explicitly so that the
+                    //`@DocumentID` property on `Item` can be populated - the
+                    //document ID lives in the document's metadata, not its body,
+                    //so `SELECT *` would not return it.
+                    //
+                    //Naming the columns (rather than using `SELECT *`) also means
+                    //each result row maps directly onto `Item`, with no wrapper
+                    //object needed to unwrap a `SELECT *` alias.
+                    let selectClause =
+                        "SELECT meta().id AS id, summary, isComplete, ownerId "
+                        + "FROM data.tasks "
+                    self.queryAllTasks = try db.createQuery(selectClause)
 
-                    queryString.append(
-                        "WHERE item.ownerId = '\(user.username)' ")
+                    var queryString = selectClause
+                    queryString.append("WHERE ownerId = '\(user.username)' ")
                     queryString.append("ORDER BY META().id ASC")
                     self.queryMyTasks = try db.createQuery(queryString)
 
@@ -115,14 +129,20 @@ actor DatabaseService {
                     }
                     let targetEndpoint = URLEndpoint(url: targetUrl)
 
+                    //configure the collection to sync
+                    //
+                    //In 4.0 the collection moved *into* `CollectionConfiguration`
+                    //and `ReplicatorConfiguration.collections` became read-only,
+                    //so collections are passed to the initializer instead of being
+                    //added afterwards - `addCollection` was removed.
+                    let collectionConfig = CollectionConfiguration(
+                        collection: collection)
+
                     //create replicator config
-                    var config = ReplicatorConfiguration(target: targetEndpoint)
+                    var config = ReplicatorConfiguration(
+                        collections: [collectionConfig], target: targetEndpoint)
                     config.replicatorType = .pushAndPull
                     config.continuous = true
-
-                    //configure collections to sync
-                    let collectionConfig = CollectionConfiguration()
-                    config.addCollection(collection, config: collectionConfig)
 
                     //add authentication
                     let auth = BasicAuthenticator(
@@ -132,16 +152,16 @@ actor DatabaseService {
                     //create the replicator
                     self._replicator = Replicator(config: config)
 
-                    //handle listeners for replication status to calculate
-                    //status change
-                    self._replicatorStatusToken = self._replicator?
-                        .addChangeListener({ (change) in
+                    //observe replication status changes
+                    self._replicator?.changePublisher()
+                        .sink { (change) in
                             if let error = change.status.error {
                                 print("replicator error state \(error)")
                             } else {
                                 print("current state \(change.status.activity)")
                             }
-                        })
+                        }
+                        .store(in: &cancellables)
 
                     if let replicator = self._replicator {
                         replicator.start()
@@ -187,27 +207,23 @@ actor DatabaseService {
             let task = Item(
                 isComplete: false, summary: taskSummary,
                 ownerId: currentuser.username)
-            if let json = task.toJSON() {
-                let mutableDocument = try MutableDocument(
-                    id: task.id, json: json)
-                try collection.save(document: mutableDocument)
-            } else {
-                app.setError(InvalidStateError(
-                    message: "item could not be serialized"))
-            }
+
+            //`save(from:)` encodes the Codable object directly. `task.id` is nil
+            //here, so Couchbase Lite generates a document ID and writes it back
+            //to the `@DocumentID` property.
+            try collection.save(from: task)
 
         } catch {
             app.setError(error)
         }
     }
 
-    /// Closes the database and stops any active listeners and replicators.
+    /// Closes the database and stops any active subscriptions and replicators.
     ///
     /// This function performs the following actions in sequence:
-    /// 1. Removes the query listener token, if it exists, to stop observing query changes.
-    /// 2. Removes the replicator status token, if it exists, to stop monitoring replicator status updates.
-    /// 3. Stops the replicator if it is currently running.
-    /// 4. Closes the database connection safely.
+    /// 1. Cancels this service's Combine subscriptions, which stops observing replicator status.
+    /// 2. Stops the replicator if it is currently running.
+    /// 3. Closes the database connection safely.
     ///
     /// If an error occurs during any of these operations, it is caught and stored in the application's error state.
     ///
@@ -217,8 +233,7 @@ actor DatabaseService {
     ///   to ensure resources are released properly and replication is stopped.
     func close() {
         do {
-            self.queryListenerToken?.remove()
-            self._replicatorStatusToken?.remove()
+            self.cancellables.removeAll()
             self._replicator?.stop()
             try self.database?.close()
         } catch {
@@ -249,7 +264,16 @@ actor DatabaseService {
                     message: "taskCollection is not available."))
                 return
             }
-            guard let doc = try collection.document(id: item.id)
+            guard let documentId = item.id
+            else {
+                app.setError(InvalidStateError(
+                    message: "item has not been saved and has no document id"))
+                return
+            }
+            //Read the stored document to verify ownership before deleting. The
+            //Codable `delete(for:)` API never touches the stored document, so this
+            //check has to be made explicitly.
+            guard let doc = try collection.document(id: documentId)
             else {
                 app.setError(InvalidStateError(message: "document not found"))
                 return
@@ -259,71 +283,27 @@ actor DatabaseService {
                 throw InvalidStateError(
                     message: "document does not belong to current user")
             }
-            try collection.delete(document: doc)
+            try collection.delete(for: item)
         } catch {
             app.setError(error)
         }
     }
 
-    /// Sets up a live query observer to monitor changes in the task list based on the specified subscription type.
+    /// Returns the cached live query for the given subscription type.
     ///
-    /// This function sets an observer that listens for changes in the task list using a live query. Depending on the
-    /// provided subscription type, it runs either the query for all tasks or the query for the current user's tasks.
-    /// When the query detects changes, the observer is called with the updated list of tasks. If an observer is already
-    /// set, it removes the existing listener before setting up a new one.
+    /// The caller subscribes to the returned query with `changePublisher()` and owns
+    /// the resulting subscription, so the view model - not this service - decides when
+    /// observation starts and stops.
     ///
-    /// - Parameters:
-    ///   - subscriptionType: A `String` representing the type of subscription for the task list.
-    ///     Use `Constants.allItems` to observe all tasks or `Constants.myItems` for observing the current user's tasks.
-    ///   - observer: An optional closure `(([Item]?) -> Void)?` that is called with the updated list of tasks when
-    ///     changes are detected by the live query. If `nil`, the function will remove any existing query listener.
+    /// - Parameter subscriptionType: Use `Constants.allItems` for every task, or
+    ///   `Constants.myItems` for only the signed-in user's tasks.
     ///
-    /// - Important: Ensure that the subscription type matches the constants used to differentiate between all tasks
-    ///   and user-specific tasks. If the subscription type is not recognized, the function may not set up the appropriate query.
-    ///
-    /// - Note: If an observer is already active when this function is called, the existing query listener token will be
-    ///   removed before adding the new listener.
+    /// - Returns: The corresponding `Query`, or `nil` if the database has not been
+    ///   initialized yet.
     ///
     /// - SeeAlso: `Constants.allItems`, `Constants.myItems`
-    func setTasksListChangeObserver(
-        subscriptionType: String, observer: (([Item]?) async -> Void)?
-    ) {
-        taskLiveQueryObserver = observer
-        var query: Query? = nil
-
-        if taskLiveQueryObserver != nil {
-            //if existing query listener is running, remove it
-            if let token = queryListenerToken {
-                token.remove()
-            }
-
-            //figure out which query to run
-            if subscriptionType == Constants.allItems {
-                query = queryAllTasks
-            } else {
-                query = queryMyTasks
-            }
-            if let runQuery = query {
-                queryListenerToken =
-                    runQuery
-                    .addChangeListener({[weak self] (change) in
-                        var items: [Item] = []
-                        if let results = change.results {
-                            for result in results {
-                                let json = result.toJSON()
-                                if let itemDao = ItemDao(json: json) {
-                                    items.append(itemDao.item)
-                                } else {
-                                    print("error deserializing item from query")
-                                }
-                            }
-                            Task {
-                                await self?.taskLiveQueryObserver?(items)
-                            }
-                        }
-                    })
-            }
-        }
+    func tasksQuery(subscriptionType: String) -> Query? {
+        subscriptionType == Constants.allItems ? queryAllTasks : queryMyTasks
     }
 
     /// Pauses the synchronization process by stopping the replicator.
@@ -378,7 +358,16 @@ actor DatabaseService {
                     message: "taskCollection is not available."))
                 return
             }
-            guard let doc = try collection.document(id: item.id)
+            guard let documentId = item.id
+            else {
+                app.setError(InvalidStateError(
+                    message: "item has not been saved and has no document id"))
+                return
+            }
+            //Read the stored document to verify ownership before updating. The
+            //Codable `save(from:)` API never touches the stored document, so this
+            //check has to be made explicitly.
+            guard let doc = try collection.document(id: documentId)
             else {
                 app.setError(InvalidStateError(message: "document not found"))
                 return
@@ -388,10 +377,9 @@ actor DatabaseService {
                 throw InvalidStateError(
                     message: "document does not belong to current user")
             }
-            let mutableDoc = doc.toMutable()
-            mutableDoc.setBoolean(isComplete, forKey: "isComplete")
-            mutableDoc.setString(summary, forKey: "summary")
-            try collection.save(document: mutableDoc)
+            item.isComplete = isComplete
+            item.summary = summary
+            try collection.save(from: item)
         } catch {
             app.setError(error)
         }

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// view a list of all Items in the collection. User can swipe to delete Items.
 struct ItemList: View {
-    @EnvironmentObject var viewModel: ItemsViewModel
+    @Environment(ItemsViewModel.self) private var viewModel
     var body: some View {
         VStack {
             List {

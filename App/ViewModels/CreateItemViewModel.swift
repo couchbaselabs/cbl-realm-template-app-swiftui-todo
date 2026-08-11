@@ -1,8 +1,10 @@
 import Foundation
+import Observation
 
+@Observable
 @MainActor
-class CreateItemViewModel: ObservableObject {
-    @Published var itemSummary = ""
+class CreateItemViewModel {
+    var itemSummary = ""
 
     let service: DatabaseService
 

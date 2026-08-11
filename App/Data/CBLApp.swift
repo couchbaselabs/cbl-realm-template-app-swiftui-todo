@@ -1,10 +1,19 @@
 import Foundation
+import Observation
 
-class CBLApp: ObservableObject {
-    @Published var currentUser: User? = nil
-    @Published var appConfig: AppConfig
-    @Published var error: Error? = nil
-    @Published var databaseState: DatabaseState = .notInitialized
+/// Application-wide state.
+///
+/// `@Observable` replaces `ObservableObject` + `@Published`: every stored `var`
+/// is tracked individually, and a view is invalidated only by the properties it
+/// actually reads in its `body`. Because tracking is per-property rather than
+/// per-object, this works even though `app` is a plain global - views do not need
+/// to hold it in a property wrapper to observe it.
+@Observable
+class CBLApp {
+    var currentUser: User? = nil
+    var appConfig: AppConfig
+    var error: Error? = nil
+    var databaseState: DatabaseState = .notInitialized
     
     init(configuration: AppConfig){
         appConfig = configuration

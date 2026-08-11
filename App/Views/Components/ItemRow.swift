@@ -7,7 +7,7 @@ struct ItemRow: View {
         NavigationLink(destination: ItemDetail(item: item)) {
             Text(item.summary)
             Spacer()
-            if item.isComplete {
+            if item.isComplete == true {
                 Image(systemName: "checkmark")
                     .foregroundColor(.blue)
                     .padding(.trailing, 10)
