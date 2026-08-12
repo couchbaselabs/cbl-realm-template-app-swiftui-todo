@@ -13,9 +13,16 @@ Some UI changes were made to remove wording about Realm and replaced with Couchb
 
 # Requirements
 - Xcode 16.0 or later
+- iOS 17.0 or later - required by the [Observation](https://developer.apple.com/documentation/observation) framework (`@Observable`) that the ViewModels use
+- Couchbase Capella App Services **4.0 or later** - see the warning below
 - Basic [SwiftUI](https://developer.apple.com/xcode/swiftui/) knowledge
 - Basic [Swift Concurrency](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/) knowledge
+- Basic [Combine](https://developer.apple.com/documentation/combine) knowledge - Couchbase Lite exposes its reactive APIs as Combine publishers
 - Understanding of the [Realm SDK for SwiftUI](https://www.mongodb.com/docs/atlas/device-sdks/sdk/swift/swiftui/)
+
+> [!WARNING]
+> This app uses Couchbase Lite **4.1.0**, which negotiates the `BLIP_3+CBMobile_4` replication protocol. Only **App Services / Sync Gateway 4.0 and later** speak that protocol. Pointing this app at a 3.x App Endpoint fails *silently* - the WebSocket upgrade is rejected, no checkpoint is ever established, and the task list stays empty with no error surfaced in the app. 
+> If you need to run against a 3.x App Endpoint, use Couchbase Lite 3.3.x instead. Every reactive API described in this document is available from 3.2.3 onwards, so only the version number and the two 4.0 API changes noted below differ.
 
 # Fetching the App Source Code
 
@@ -40,6 +47,13 @@ Several files were changed or added in the conversion process.
 ## Package Dependencies 
 The app Package Dependencies were updated, removing the Realm and Realm Database frameworks.  The CouchbaseLiteSwift framework was added to the project.  The [Couchbase Lite documentation](https://docs.couchbase.com/couchbase-lite/current/swift/gs-install.html#lbl-install-tabs) covers the various methods for adding the CouchbaseLiteSwift library to a new or existing project.  In this project we used Swift Package Manager (SPM).
 
+The package is pinned with the *Up to Next Minor Version* rule, so the project resolves 4.1.x but will not move to 4.2 on its own:
+
+```
+https://github.com/couchbase/couchbase-lite-swift-ee.git
+Up to Next Minor Version: 4.1.0
+```
+
 > [!WARNING]
 > Some XCode users have reported issues restoring the SPM dependencies.  If you have issues, you might need to reset your package cache.  When searching the internet on this problem, most “solutions” on the forums revolve around some magical combination:
 > - Cleaning your project (cmd-shift-K)
@@ -49,9 +63,13 @@ The app Package Dependencies were updated, removing the Realm and Realm Database
 > - Running File > Packages > Resolve Package Versions
 > - Closing and re-opening Xcode.
 >
+> Two failures are specific to changing the SDK version in an existing checkout:
+> - If resolution fails with `failed downloading ... already exists in file system`, a partially downloaded artifact is cached. Delete the matching entry under `~/Library/Caches/org.swift.swiftpm/artifacts/` and resolve again.
+> - **Do a clean build (cmd-shift-K) after changing the version.** Some signatures changed between releases in ways that are source-compatible but binary-incompatible - `ValueIndexConfiguration.init` is one - and an incremental build can reuse a stale module cache and fail at link time with an undefined symbol.
+>
 
 ## App Services Configuration File
-The original source code had the configuration for Atlas App Services stored in the atlasConfig.plist file located in the App folder.  This file was removed and the configuration for Capella App Services was added in the [capellaConfig.plist]() file. 
+The original source code had the configuration for Atlas App Services stored in the atlasConfig.plist file located in the App folder.  This file was removed and the configuration for Capella App Services was added in the [capellaConfig.plist](./App/capellaConfig.plist) file. 
 
 You will need to modify this file to add your Couchbase Capella App Services endpoint URL, as outlined in the [Capella setup instructions](./Capella.md).
 
@@ -98,15 +116,49 @@ The Couchbase Lite SDK doesn't provide a user object for tracking the authentica
 
 ## Updating Item Domain Model
 
-The [Item](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Models/Item.swift#L22) file was modified to remove the Realm annotations and to refactor some properties to meet standard Swift conventions for serialization.
+The [Item](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Models/Item.swift) file was modified to remove the Realm annotations and to refactor some properties to meet standard Swift conventions for serialization.
 
-The Item class was changed to support the Codable and Identifiable protocols. The Swift serialization library allows the conversion of the class to a JSON string for storage in Couchbase Lite, so changes were made to the class to make it serializable by the Swift serialization library.
+The Item class supports the Codable and Identifiable protocols, which lets Couchbase Lite read and write it directly - no hand-written JSON conversion and no separate Data Access Object are required.
 
-Finally, a [ItemDAO](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Models/Item.swift#L3) (Data Access Object) was created to help with the deserialization of the Query Results that come back from a SQL++ QueryChange object.
+```swift
+class Item: Codable, Identifiable {
+    @DocumentID var id: String?
+    var isComplete: Bool?
+    var summary: String
+    var ownerId: String
+    ...
+}
+```
+
+Three details about this class are worth calling out:
+
+- **`@DocumentID`** binds `id` to the document's *metadata* ID rather than to a field in the document body. On save, if `id` is `nil`, Couchbase Lite generates a document ID and writes it back to the property, and the ID is never stored inside the JSON body. On read, the property is populated from the `id` column of the query result - which is why the queries below select `meta().id AS id` explicitly.
+- **`Item` has to be a `class`, not a `struct`.** The Codable document APIs (`Collection.save(from:)`, `Collection.delete(for:)`) are constrained to `AnyObject`; the SDK declares `typealias DocumentCodable = Codable & AnyObject`.
+- **`isComplete` is optional (`Bool?`).** Swift's generated decoder fails outright if a key for a non-optional property is missing, and because a result set is decoded in a single `data(as:)` call, one document without `isComplete` would fail the whole batch and leave the list empty. Optional lets those documents decode, with `nil` treated as "not complete" where it is displayed.
+
+An earlier version of this app carried an `ItemDao` wrapper to unwrap `SELECT *` query results and a hand-written `toJSON()` method. Naming the query columns and using the Codable APIs made both unnecessary, and they were removed.
 
 ## Database Service 
 
 A new [DatabaseService](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift) was created to handle interactions between the Couchbase Lite Database, Collection, and Replicator and the rest of the application.  
+
+### Logging
+
+The service's initializer turns on console logging:
+
+```swift
+init() {
+    LogSinks.console = ConsoleLogSink(level: .debug)
+}
+```
+
+> [!NOTE]
+> This is the second API that changed in Couchbase Lite 4.0.  `Database.log` was removed; logging is now configured by assigning a sink to `LogSinks`.  On 3.3.x the equivalent is `Database.log.console.level = .debug`.
+>
+> Only a console sink is set here, so log output is visible in Xcode while the app runs but is not kept afterwards.  To keep logs for later inspection - which is worth doing when diagnosing replication - also assign a file sink:
+> ```swift
+> LogSinks.file = FileLogSink(level: .verbose, directory: logDirectory)
+> ```
 
 ### Initialize Couchbase Lite Database and Replication Configuration
 
@@ -144,17 +196,24 @@ try collection.createIndex(
 ```
 
 #### Cached Query Setup 
-Next, two basic queries for the application are created:  One to get the current users tasks and one to get all tasks. Queries are compiled when created from the `db.createQuery` function.  By initializing the query when the service is intialized, we can use the query later in the application without having to recompile the query each time the setTasksListChangeObserver function is run. 
+Next, two basic queries for the application are created:  One to get the current users tasks and one to get all tasks. Queries are compiled when created from the `db.createQuery` function.  By initializing the query when the service is intialized, we can use the query later in the application without having to recompile the query each time the task list is observed. 
 
 ```swift
  //create cache queries used for LiveQuery
-var queryString = "SELECT * FROM data.tasks as item "
-self.queryAllTasks = try db.createQuery(queryString)
+let selectClause =
+  "SELECT meta().id AS id, summary, isComplete, ownerId "
+  + "FROM data.tasks "
+self.queryAllTasks = try db.createQuery(selectClause)
                     
-queryString.append("WHERE item.ownerId = '\(user.username)' ")
+var queryString = selectClause
+queryString.append("WHERE ownerId = '\(user.username)' ")
 queryString.append("ORDER BY META().id ASC")
 self.queryMyTasks = try db.createQuery(queryString)
 ```
+
+> [!IMPORTANT]
+> The columns are named explicitly rather than using `SELECT *`, and `meta().id AS id` is selected deliberately. A document's ID lives in its metadata, not in its body, so `SELECT *` does not return it and the `@DocumentID` property on `Item` would silently decode as `nil`. Every code path that needs the document ID afterwards - `deleteTask` and `updateItem` both do - would then fail. Naming the columns also means each result row maps straight onto `Item`, which is what removed the need for the `ItemDao` wrapper.
+>
 
 Caching queries aren't required, but can save on resources if the same query is run multiple times. 
 
@@ -162,10 +221,20 @@ Caching queries aren't required, but can save on resources if the same query is 
 Next the [Replication Configuration](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift#L118) is created using the Endpoint URL that is provided from the resource file described earlier in this document.  The configuration is setup in a [PULL_AND_PUSH](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-sync) configuration which means it will pull changes from the remote database and push changes to Capella App Services. By setting continuous to true the replicator will continue to listen for changes and replicate them.  
 
 ```swift
-var config = ReplicatorConfiguration(target: targetEndpoint)
+//configure the collection to sync
+let collectionConfig = CollectionConfiguration(
+  collection: collection)
+
+//create replicator config
+var config = ReplicatorConfiguration(
+  collections: [collectionConfig], target: targetEndpoint)
 config.replicatorType = .pushAndPull
 config.continuous = true
 ```
+
+> [!NOTE]
+> This is one of the two APIs that changed in Couchbase Lite 4.0. The collection is now supplied *through* `CollectionConfiguration`, and `ReplicatorConfiguration.collections` is read-only, so collections are passed to the initializer. The 3.x form - `ReplicatorConfiguration(target:)` followed by `config.addCollection(collection, config: CollectionConfiguration())` - was removed. On 3.3.x, use that older form instead.
+>
 
 > [!TIP]
 >The Couchbase Lite SDK [Replication Configuration](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-cfg-repl) API also supports [filtering of channels](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-chan) to limit the data that is replicated to the device. 
@@ -180,67 +249,79 @@ let auth = BasicAuthenticator(
 config.authenticator = auth
 ```
 #### Replicator Status 
-A change listener for [Replication Status](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-status) is created and is used to track any errors that might happen. 
+The [Replication Status](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#lbl-repl-status) is observed through the Replicator's [changePublisher](https://docs.couchbase.com/couchbase-lite/current/swift/reactive.html) - a Combine publisher - and is used to track any errors that might happen. 
 
 ```swift
-//handle listeners for replication status to calculate
-//status change
-self._replicatorStatusToken = self._replicator?.addChangeListener 
-  ({ (change) in
-  DispatchQueue.main.async {
-   if let error = change.status.error {
-     print("replicator error state \(error)")
-   } else {
-     print ("current state \(change.status.activity)" )
-   }
+//observe replication status changes
+self._replicator?.changePublisher()
+  .sink { (change) in
+    if let error = change.status.error {
+      print("replicator error state \(error)")
+    } else {
+      print("current state \(change.status.activity)")
+    }
   }
-})
+  .store(in: &cancellables)
 ```
+
+The earlier version of this app called `addChangeListener`, held on to the returned `ListenerToken`, and removed it by hand in `close()`. The publisher replaces all of that. `store(in:)` hands the subscription to a `Set<AnyCancellable>` owned by the service, and releasing that set cancels the underlying listener:
+
+```swift
+//Combine subscriptions owned by this service. `AnyCancellable` cancels its
+//subscription when it is released, so there are no listener tokens to remove.
+fileprivate var cancellables = Set<AnyCancellable>()
+```
+
+Publishers also deliver on the main queue by default, so the `DispatchQueue.main.async` hop that the listener version needed is no longer there.
 > [!IMPORTANT]
 >Swift Developers should review the [Couchbase Lite SDK documentation for Swift](https://docs.couchbase.com/couchbase-lite/current/swift/replication.html#introduction) prior to making decisions on how to setup the replicator.
 >
 
 ### addTask function 
 
-The [addTask function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift#L176) was created to add a task to the CouchbaseLite Database using JSON serialization.  The method is shown below:
+The [addTask function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift) was created to add a task to the CouchbaseLite Database using the Codable API.  The method is shown below:
 
 ```swift
+guard let currentuser = app.currentUser
+else {
+  app.setError(InvalidCredentialsException(
+    message: "User is not logged in."))
+  return
+}
 guard let collection = taskCollection
- else {
-  app.error = InvalidStateError(
-    message: "taskCollection is not available.")
+else {
+  app.setError(InvalidStateError(
+    message: "taskCollection is not available."))
   return
 }
 let task = Item(
-  isComplete: false, 
-  summary: taskSummary, 
+  isComplete: false,
+  summary: taskSummary,
   ownerId: currentuser.username)
-if let json = task.toJSON() {
-  let mutableDocument = try MutableDocument(id: task.id, json: json)
-  try collection.save(document: mutableDocument)
-} else {
-  app.error = InvalidStateError(
-    message: "item could not be serialized")
-}
+
+try collection.save(from: task)
 ```
-The task is serialized into a JSON string using the Swift serialization library and then saved to the collection via the [MutableDocument](https://docs.couchbase.com/couchbase-lite/current/swift/document.html#create-a-document) object.  If an error occurs, the app.error handler is set with the exception that was thrown.
+`save(from:)` encodes the object and writes it in a single step. `task.id` is `nil` at this point, so Couchbase Lite generates a document ID and assigns it back to the `@DocumentID` property.  If an error occurs, `app.setError` is called with the exception that was thrown.
+
+The earlier version of this app serialized the object to a JSON string with a hand-written `toJSON()` method and wrapped it in a [MutableDocument](https://docs.couchbase.com/couchbase-lite/current/swift/document.html#create-a-document) before saving. Neither step is needed with the Codable API.
 
 ### close method
 
-The close method is used to remove any query listeners, the replication status change listener, stop replication, and then close the database.  This will be called when the user logs out from the application making sure if the application is used by multiple uses to close out all resources before another user logs into the application.
+The close method cancels this service's Combine subscriptions, stops replication, and then closes the database.  This will be called when the user logs out from the application making sure if the application is used by multiple uses to close out all resources before another user logs into the application.
 
 ```swift
 func close() {
  do {
-  self.queryListenerToken?.remove()
-  self._replicatorStatusToken?.remove()
+  self.cancellables.removeAll()
   self._replicator?.stop()
   try self.database?.close()
  } catch {
-  app.error = error
+  app.setError(error)
  }
 }
 ```
+
+Releasing the `AnyCancellable` values cancels the query and replicator subscriptions, so the explicit `queryListenerToken?.remove()` and `_replicatorStatusToken?.remove()` calls that the listener-based version required are gone.
 
 ### Handling Security of Updates/Delete
 
@@ -250,113 +331,158 @@ Couchbase Lite doesn't have the same security model.  In this application the fo
 
 The code of the application was modified to validate that write access is only allowed by users that own the tasks and the Data Access and Validation script was added in the Capella setup instructions that limits whom can write updates.
 
+Ownership is enforced at three levels:
+
+1. **The UI does not offer the action.** [ItemDetail](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/ItemDetail.swift) shows the edit fields and the Save button only when the signed-in user owns the task, and [ItemList](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/ItemList.swift) attaches the swipe-to-delete action per row, only for rows the signed-in user owns.
+2. **The DatabaseService re-checks before writing.** `deleteTask` and `updateItem` both read the stored document back and compare its `ownerId` against `app.currentUser`, so a call that bypasses the UI is still rejected.
+3. **The Data Access and Validation function rejects the write on the server.** See [sync.js](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/sync.js), which is the only one of the three that also applies to clients other than this app.
+>
+
 > [!TIP]
 > Develoeprs can use a Custom [Replication Conflict Resolution](https://docs.couchbase.com/couchbase-lite/current/android/conflict.html#custom-conflict-resolution) to receive the result in your applications code and then revert the change.
 >
 
 ### deleteTask method
 
-The deleteTask method removes a task from the database.  This is done by retrieving the document from the database using the `collection.document` function and then calling the collection `delete` function.  A security check was added so that only the owner of the task can delete the task.
+The deleteTask method removes a task from the database.  The stored document is read back with the `collection.document` function so that its owner can be checked, and the task is then removed with the Codable `delete(for:)` function.  A security check was added so that only the owner of the task can delete the task.
 
 ```swift
-func deleteTask(item: Item){
+func deleteTask(item: Item) {
   do {
-    guard let collection = taskCollection
+    guard let currentuser = app.currentUser
     else {
-      app.error = InvalidStateError(message: "taskCollection is not available.")
+      app.setError(InvalidCredentialsException(
+        message: "User is not logged in."))
       return
     }
-    guard let doc = try collection.document(id: item.id)
+    guard let collection = taskCollection
     else {
-      app.error = InvalidStateError(message: "document not found")
+      app.setError(InvalidStateError(
+        message: "taskCollection is not available."))
+      return
+    }
+    guard let documentId = item.id
+    else {
+      app.setError(InvalidStateError(
+        message: "item has not been saved and has no document id"))
+      return
+    }
+    guard let doc = try collection.document(id: documentId)
+    else {
+      app.setError(InvalidStateError(message: "document not found"))
       return
     }
     let ownerId = doc.string(forKey: "ownerId")
-    if (ownerId != item.ownerId){
-       throw InvalidStateError(message: "document does not belong 
-       to current user")
+    if ownerId != currentuser.username {
+      throw InvalidStateError(
+        message: "document does not belong to current user")
     }
-    try collection.delete(document: doc)
-    } catch {
-      app.error = error
-   }
-}
-```
-### setTasksListChangeObserver function 
-
-Couchbase Lite doesn't support the various patterns that Realm provides for tracking changes in a Realm.  Instead Couchbase Lite has the [LiveQuery](https://docs.couchbase.com/couchbase-lite/current/swift/query-live.html#activating-a-live-query) API.  A live query is a query that, once activated, remains active and monitors the database for changes; refreshing the result set whenever a change occurs.  Unlike Realm, when a change is detected, the entire query is re-run and the results are updated.   
-
-Couchbase Lite has a different way of handing replication and security than the Atlas Device SDK [Subscription API](https://www.mongodb.com/docs/atlas/device-sdks/sdk/kotlin/sync/subscribe/#subscriptions-overview).  Because of this, two queries were created to pull the information from the database based on the users selection.  One query is for all tasks and the other is for the current users tasks.  The setTasksListChangeObserver function is used to setup the LiveQuery and then call the completion handler with the results of the query so that the ViewModel can update the observed array of items. 
-
-```swift 
-  func setTasksListChangeObserver(subscriptionType: String, observer: (([Item]?) -> Void)?) {
-
-taskLiveQueryObserver = observer
-var query:Query? = nil
-        
-if (taskLiveQueryObserver != nil) {
- //if existing query listener is running, remove it
- if let token =  queryListenerToken {
-  token.remove()
- }
- //figure out which query to run
- if (subscriptionType == Constants.allItems){
-  query = queryAllTasks
- } else {
-  query = queryMyTasks
- }
- if let runQuery = query {
-  queryListenerToken = runQuery
-  .addChangeListener({ [self] ( change ) in
-   var items: [Item] = []
-   if let results = change.results {
-     for result in results {
-      let json = result.toJSON()
-      if let itemDao = ItemDao(json: json){
-       items.append(itemDao.item)
-      } else {
-       print("error deserializing item from query")
-      }
-    }
-    taskLiveQueryObserver?(items)
-    }
-   })
+    try collection.delete(for: item)
+  } catch {
+    app.setError(error)
   }
- } 
 }
 ```
+
+One detail changed alongside the move to `delete(for:)`:
+
+- `item.id` is an `Optional<String>`, because `@DocumentID` is only populated once an item has been saved or read back from a query. It is unwrapped before use rather than passed straight to `collection.document(id:)`.
+
+### Observing the task list with changePublisher
+
+Couchbase Lite doesn't support the various patterns that Realm provides for tracking changes in a Realm.  Instead Couchbase Lite has the [LiveQuery](https://docs.couchbase.com/couchbase-lite/current/swift/query-live.html#activating-a-live-query) API.  A live query is a query that, once activated, remains active and monitors the database for changes; refreshing the result set whenever a change occurs.  Unlike Realm, when a change is detected, the entire query is re-run and the results are updated.
+
+Couchbase Lite has a different way of handing replication and security than the Atlas Device SDK [Subscription API](https://www.mongodb.com/docs/atlas/device-sdks/sdk/kotlin/sync/subscribe/#subscriptions-overview).  Because of this, two queries were created to pull the information from the database based on the users selection.  One query is for all tasks and the other is for the current users tasks.
+
+From release 3.2.3 the SDK exposes live queries as [Combine publishers](https://docs.couchbase.com/couchbase-lite/current/swift/reactive.html), so the DatabaseService no longer owns the observation at all.  It simply returns the appropriate compiled query:
+
+```swift
+func tasksQuery(subscriptionType: String) -> Query? {
+    subscriptionType == Constants.allItems ? queryAllTasks : queryMyTasks
+}
+```
+
+The [ItemsViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/ItemsViewModel.swift) subscribes to that query and keeps its `items` array in step with it:
+
+```swift
+private func observeTasks(subscriptionType: String) async {
+    cancellables.removeAll()
+
+    guard let query = await service.tasksQuery(
+        subscriptionType: subscriptionType)
+    else { return }
+
+    query.changePublisher()
+        .map { change -> [Item] in
+            guard let results = change.results else { return [] }
+            return (try? results.data(as: Item.self)) ?? []
+        }
+        .sink { [weak self] items in
+            self?.items = items
+        }
+        .store(in: &cancellables)
+}
+```
+
+This replaces a `setTasksListChangeObserver(subscriptionType:observer:)` function that took a completion handler, tracked a `ListenerToken`, removed the previous token by hand, and looped over the result set building `Item` values through an `ItemDao`.  The publisher form differs in four ways:
+
+- **There is no token to manage.**  `store(in:)` puts the subscription into the ViewModel's `Set<AnyCancellable>`, and `cancellables.removeAll()` at the top of the function cancels the previous live query - so toggling between "my tasks" and "all tasks" swaps cleanly instead of leaving two queries running.
+- **There is no completion handler.**  The ViewModel owns the subscription, so it - not the DatabaseService - decides when observation starts and stops.
+- **Decoding is a single call.**  `results.data(as: Item.self)` decodes the whole result set into `[Item]`, replacing the per-row loop and the `ItemDao` wrapper.
+- **Delivery is already on the main queue.**  `changePublisher(on:)` defaults to `.main`.
+
+> [!IMPORTANT]
+> The subscription has to be stored.  A Combine publisher does nothing until something subscribes to it, and the subscription is cancelled as soon as its `AnyCancellable` is released - so discarding the result of `sink` means the live query never fires at all.
+>
+
+> [!NOTE]
+> The SDK also provides `Collection.changePublisher()`, `Collection.documentChangePublisher(for:)`, `Replicator.changePublisher()` and `Replicator.documentReplicationPublisher()`.  This app uses the query and replicator-status publishers.  `documentChangePublisher(for:)` would be the way to make the [ItemDetail](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/ItemDetail.swift) view update while it is open, which it currently does not do - it takes a snapshot of the task when it appears.
+>
 
 > [!IMPORTANT]
 >Developers should review the Couchbase Capella App Services [channels](https://docs.couchbase.com/cloud/app-services/channels/channels.html) and [roles](https://docs.couchbase.com/cloud/app-services/user-management/create-app-role.html) documentation to understand the security model it provides prior to planning an application migration. 
 >
 
 ### updateItem function 
-The updateItem function is used to update a task. This is done by retrieving the document from the database using the collection.getDocument method and then updating the document with the new value for the isComplete and summary property. A security check was added so that only the owner of the task can update the task.  The document is then saved back to the collection.
-
-Swift serialization could have been used to perform this update, but is inefficient as only two properties are updated and seralization of the entire object would cost more resources.  
+The updateItem function is used to update a task. The stored document is read back so that its owner can be checked, the new values are applied to the `Item`, and the object is written with the Codable `save(from:)` function. A security check was added so that only the owner of the task can update the task.
 
 ```swift
+guard let currentuser = app.currentUser
+else {
+  app.setError(InvalidCredentialsException(
+    message: "User is not logged in."))
+  return
+}
 guard let collection = taskCollection
 else {
   app.setError(InvalidStateError(
-  message: "taskCollection is not available."))
+    message: "taskCollection is not available."))
   return
 }
-guard let doc = try collection.document(id: item.id)
+guard let documentId = item.id
+else {
+  app.setError(InvalidStateError(
+    message: "item has not been saved and has no document id"))
+  return
+}
+guard let doc = try collection.document(id: documentId)
 else {
   app.setError(InvalidStateError(message: "document not found"))
   return
 }
 let ownerId = doc.string(forKey: "ownerId")
-if ownerId != item.ownerId {
+if ownerId != currentuser.username {
   throw InvalidStateError(
     message: "document does not belong to current user")
 }
-let mutableDoc = doc.toMutable()
-mutableDoc.setBoolean(isComplete, forKey: "isComplete")
-mutableDoc.setString(summary, forKey: "summary")
-try collection.save(document: mutableDoc)
+item.isComplete = isComplete
+item.summary = summary
+try collection.save(from: item)
 ```
+
+The earlier version of this app read the document into a MutableDocument with `doc.toMutable()` and set each field individually with `setBoolean` and `setString`, on the grounds that serializing a whole object to change two properties was wasteful. `save(from:)` writes the whole object instead, which keeps this function consistent with `addTask` and removes the last place where field names were repeated as string literals - at the cost of re-encoding the fields that did not change.
+
+The document is located by `item.id`, which is only populated because the query selects `meta().id AS id`. 
 ## Other Application Changes
 
 ### Rename OpenRealmView 
@@ -378,6 +504,41 @@ Several new ViewModels were added to the application to interact between the Vie
 - [LoginViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LoginViewModel.swift) - handles authenticating of the user from the [LoginView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/LoginView.swift) and calling the initalization of the database.
 - [LogoutViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/LogoutViewModel.swift) - handles logging the user out of the application including closing all database resources from the [LogoutButton](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/LogoutButton.swift).  
 - [OpenDatabaseViewModel](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/ViewModels/OpenDatabaseViewModel.swift) - used for stopping and starting replication to simulate the user going offline and online which is done via a button in the [OpenDatabaseView](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/OpenDatabaseView.swift#L50). 
+
+#### Observation
+
+All of these ViewModels - along with [CBLApp](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/CBLApp.swift) and the `ErrorHandler` in [App.swift](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/App.swift) - use the [Observation](https://developer.apple.com/documentation/observation) framework's `@Observable` macro rather than `ObservableObject` with `@Published`:
+
+```swift
+@Observable
+@MainActor
+class ItemsViewModel {
+    var items: [Item] = []
+    ...
+}
+```
+
+The Views changed to match: `@StateObject` became `@State`, `@EnvironmentObject` became `@Environment(SomeViewModel.self)`, `.environmentObject(_:)` became `.environment(_:)`, and `@ObservedObject` was dropped where the object is only read.  Because Observation tracks each property individually on any `@Observable` instance a View reads during `body`, reading `app.currentUser` now registers the View for updates without a property wrapper.
+
+Two consequences are worth knowing about:
+
+- **Every type resolved through `@Environment` must be `@Observable`**, even when it holds no mutable state.  `ItemDetailViewModel` and `OpenDatabaseViewModel` only forward a call to the DatabaseService, but `@Environment(ItemDetailViewModel.self)` will not compile unless the type carries the macro.
+- **`@Environment` supplies the object but not bindings into it.**  Where a View needs `$viewModel.someProperty` for a `TextField` or `Toggle`, it declares a local `@Bindable` shadow first - which is what `@EnvironmentObject` used to provide directly:
+
+```swift
+var body: some View {
+    @Bindable var viewModel = viewModel
+
+    return Form {
+        TextField("New item", text: $viewModel.itemSummary)
+        ...
+    }
+}
+```
+
+> [!NOTE]
+> `@Observable` requires iOS 17 or later, which is why this app's deployment target was raised to 17.0.  To support iOS 15 or 16, keep `ObservableObject` with `@Published` instead - the Combine pipeline described above feeds `@Published` properties just as well, and nothing else in this document changes.
+>
 
 ### Updated ItemDetail view
 The ItemDetail view was updated to add a button for saving the task updates that are performed on the view.  The new button calls the ItemDetailViewModel to update the task in the database.
