@@ -258,6 +258,12 @@ actor DatabaseService {
     /// - SeeAlso: `InvalidStateError`
     func deleteTask(item: Item) {
         do {
+            guard let currentuser = app.currentUser
+            else {
+                app.setError(InvalidCredentialsException(
+                    message: "User is not logged in."))
+                return
+            }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -273,13 +279,18 @@ actor DatabaseService {
             //Read the stored document to verify ownership before deleting. The
             //Codable `delete(for:)` API never touches the stored document, so this
             //check has to be made explicitly.
+            //
+            //Compared against the currently logged-in user, not `item.ownerId` -
+            //`item` was decoded from this same document, so comparing to
+            //`item.ownerId` would just compare the document to itself and never
+            //reject anything.
             guard let doc = try collection.document(id: documentId)
             else {
                 app.setError(InvalidStateError(message: "document not found"))
                 return
             }
             let ownerId = doc.string(forKey: "ownerId")
-            if ownerId != item.ownerId {
+            if ownerId != currentuser.username {
                 throw InvalidStateError(
                     message: "document does not belong to current user")
             }
@@ -352,6 +363,12 @@ actor DatabaseService {
     /// - Throws: If an error occurs during document retrieval or saving, it is caught and passed to the `app.setError` function to handle the error.
     func updateItem(item: Item, isComplete: Bool, summary: String) {
         do {
+            guard let currentuser = app.currentUser
+            else {
+                app.setError(InvalidCredentialsException(
+                    message: "User is not logged in."))
+                return
+            }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -367,13 +384,18 @@ actor DatabaseService {
             //Read the stored document to verify ownership before updating. The
             //Codable `save(from:)` API never touches the stored document, so this
             //check has to be made explicitly.
+            //
+            //Compared against the currently logged-in user, not `item.ownerId` -
+            //`item` was decoded from this same document, so comparing to
+            //`item.ownerId` would just compare the document to itself and never
+            //reject anything.
             guard let doc = try collection.document(id: documentId)
             else {
                 app.setError(InvalidStateError(message: "document not found"))
                 return
             }
             let ownerId = doc.string(forKey: "ownerId")
-            if ownerId != item.ownerId {
+            if ownerId != currentuser.username {
                 throw InvalidStateError(
                     message: "document does not belong to current user")
             }
