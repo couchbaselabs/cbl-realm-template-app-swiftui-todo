@@ -38,6 +38,7 @@ struct CreateItemView: View {
                         Spacer()
                     }
                 }
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 Button(action: {
                     // If the user cancels, we don't want to
                     // append the new object we created to the
@@ -51,6 +52,7 @@ struct CreateItemView: View {
                         Spacer()
                     }
                 }
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
             }
         }
         .navigationBarTitle("Add Item")
