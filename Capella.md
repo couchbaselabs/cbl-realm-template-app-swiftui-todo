@@ -86,4 +86,11 @@ Copy the Public Connection URL that is provided.  This will be used in the mobil
 
 Now open the `capellaConfig.plist` file, which is located in the App folder.
 
-Update the `endpointUrl` value with the Public Connection URL you copied from the App Endpoint.  
+Replace the placeholder `endpointUrl` value with the Public Connection URL you copied from the App Endpoint:
+
+```xml
+<key>endpointUrl</key>
+<string>wss://&lt;your-endpoint-host&gt;:4984/tasks</string>
+```
+
+The app cannot sync until this placeholder is replaced.  

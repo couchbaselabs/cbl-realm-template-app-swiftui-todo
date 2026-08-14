@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// view a list of all Items in the collection. User can swipe to delete their own Items.
+/// View a list of all Items in the collection. User can swipe to delete their own Items.
 struct ItemList: View {
     @Environment(ItemsViewModel.self) private var viewModel
     var body: some View {

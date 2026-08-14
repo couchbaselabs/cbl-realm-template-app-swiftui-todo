@@ -18,7 +18,7 @@ Some UI changes were made to remove wording about Realm and replaced with Couchb
 - Basic [SwiftUI](https://developer.apple.com/xcode/swiftui/) knowledge
 - Basic [Swift Concurrency](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/) knowledge
 - Basic [Combine](https://developer.apple.com/documentation/combine) knowledge - Couchbase Lite exposes its reactive APIs as Combine publishers
-- Understanding of the [Realm SDK for SwiftUI](https://www.mongodb.com/docs/atlas/device-sdks/sdk/swift/swiftui/)
+- Understanding of the [Couchbase Lite SDK for Swift](https://docs.couchbase.com/couchbase-lite/current/swift/quickstart.html)
 
 > [!WARNING]
 > This app uses Couchbase Lite **4.1.0**, which negotiates the `BLIP_3+CBMobile_4` replication protocol. Only **App Services / Sync Gateway 4.0 and later** speak that protocol. Pointing this app at a 3.x App Endpoint fails *silently* - the WebSocket upgrade is rejected, no checkpoint is ever established, and the task list stays empty with no error surfaced in the app. 
@@ -71,7 +71,14 @@ Up to Next Minor Version: 4.1.0
 ## App Services Configuration File
 The original source code had the configuration for Atlas App Services stored in the atlasConfig.plist file located in the App folder.  This file was removed and the configuration for Capella App Services was added in the [capellaConfig.plist](./App/capellaConfig.plist) file. 
 
-You will need to modify this file to add your Couchbase Capella App Services endpoint URL, as outlined in the [Capella setup instructions](./Capella.md).
+The file ships with a placeholder endpoint:
+
+```xml
+<key>endpointUrl</key>
+<string>wss://&lt;your-endpoint-host&gt;:4984/tasks</string>
+```
+
+You will need to replace this placeholder with your own Couchbase Capella App Services endpoint URL, as outlined in the [Capella setup instructions](./Capella.md), before the app can sync.
 
 ##  realmSwiftUIApp changes and CBLiteApp
 The original source code had the SwiftUI.App [Application](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/App.swift#L4) inheriting from a custom realmSwiftUIApp that creates a local RMLApp instance app.
@@ -339,22 +346,17 @@ Ownership is enforced at three levels:
 >
 
 > [!TIP]
-> Develoeprs can use a Custom [Replication Conflict Resolution](https://docs.couchbase.com/couchbase-lite/current/android/conflict.html#custom-conflict-resolution) to receive the result in your applications code and then revert the change.
+> Developers can use a Custom [Replication Conflict Resolution](https://docs.couchbase.com/couchbase-lite/current/android/conflict.html#custom-conflict-resolution) to receive the result in your applications code and then revert the change.
 >
 
 ### deleteTask method
 
-The deleteTask method removes a task from the database.  The stored document is read back with the `collection.document` function so that its owner can be checked, and the task is then removed with the Codable `delete(for:)` function.  A security check was added so that only the owner of the task can delete the task.
+The deleteTask method removes a task from the database.  The stored document is read back with the `collection.document` function so that its owner can be checked, and that same `Document` is then passed to `collection.delete(document:)`.  A security check was added so that only the owner of the task can delete the task.
 
 ```swift
 func deleteTask(item: Item) {
   do {
-    guard let currentuser = app.currentUser
-    else {
-      app.setError(InvalidCredentialsException(
-        message: "User is not logged in."))
-      return
-    }
+    guard let currentuser = requireCurrentUser() else { return }
     guard let collection = taskCollection
     else {
       app.setError(InvalidStateError(
@@ -369,7 +371,7 @@ func deleteTask(item: Item) {
     }
     guard let doc = try collection.document(id: documentId)
     else {
-      app.setError(InvalidStateError(message: "document not found"))
+      // Already gone - nothing to do, and nothing to report.
       return
     }
     let ownerId = doc.string(forKey: "ownerId")
@@ -377,16 +379,17 @@ func deleteTask(item: Item) {
       throw InvalidStateError(
         message: "document does not belong to current user")
     }
-    try collection.delete(for: item)
+    try collection.delete(document: doc)
   } catch {
     app.setError(error)
   }
 }
 ```
 
-One detail changed alongside the move to `delete(for:)`:
+Two details are worth noting:
 
 - `item.id` is an `Optional<String>`, because `@DocumentID` is only populated once an item has been saved or read back from a query. It is unwrapped before use rather than passed straight to `collection.document(id:)`.
+- A document that has already been deleted is treated as success rather than as an error. It may have been deleted on another device and that deletion pulled down by replication, in which case the requested end state has already been reached. `delete(document:)` is used rather than the Codable `delete(for:)` for the same reason: the ownership check already holds the `Document`, so no second read is needed, and passing it is idempotent if replication removes the document between the check and the delete. `delete(for:)` fails that race with *"Cannot delete a document that has not yet been saved."*
 
 ### Observing the task list with changePublisher
 
@@ -424,19 +427,22 @@ private func observeTasks(subscriptionType: String) async {
 }
 ```
 
-This replaces a `setTasksListChangeObserver(subscriptionType:observer:)` function that took a completion handler, tracked a `ListenerToken`, removed the previous token by hand, and looped over the result set building `Item` values through an `ItemDao`.  The publisher form differs in four ways:
+Four details of this subscription are worth calling out:
 
-- **There is no token to manage.**  `store(in:)` puts the subscription into the ViewModel's `Set<AnyCancellable>`, and `cancellables.removeAll()` at the top of the function cancels the previous live query - so toggling between "my tasks" and "all tasks" swaps cleanly instead of leaving two queries running.
-- **There is no completion handler.**  The ViewModel owns the subscription, so it - not the DatabaseService - decides when observation starts and stops.
-- **Decoding is a single call.**  `results.data(as: Item.self)` decodes the whole result set into `[Item]`, replacing the per-row loop and the `ItemDao` wrapper.
+- **The subscription's lifetime belongs to the ViewModel.**  `store(in:)` puts it into the ViewModel's `Set<AnyCancellable>`, and `cancellables.removeAll()` at the top of the function cancels the previous live query - so toggling between "my tasks" and "all tasks" swaps cleanly instead of leaving two queries running.
+- **The ViewModel decides when observation starts and stops.**  Because it holds the cancellable, the DatabaseService does not need to track the observation on its behalf.
+- **Decoding is a single call.**  `results.data(as: Item.self)` decodes the whole result set into `[Item]`.
 - **Delivery is already on the main queue.**  `changePublisher(on:)` defaults to `.main`.
 
 > [!IMPORTANT]
 > The subscription has to be stored.  A Combine publisher does nothing until something subscribes to it, and the subscription is cancelled as soon as its `AnyCancellable` is released - so discarding the result of `sink` means the live query never fires at all.
 >
 
-> [!NOTE]
-> The SDK also provides `Collection.changePublisher()`, `Collection.documentChangePublisher(for:)`, `Replicator.changePublisher()` and `Replicator.documentReplicationPublisher()`.  This app uses the query and replicator-status publishers.  `documentChangePublisher(for:)` would be the way to make the [ItemDetail](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/ItemDetail.swift) view update while it is open, which it currently does not do - it takes a snapshot of the task when it appears.
+> [!TIP]
+> This app subscribes to two of the publishers the SDK offers - the query publisher shown above and `Replicator.changePublisher()` for replication status.  The SDK also provides `Collection.changePublisher()`, `Collection.documentChangePublisher(for:)` and `Replicator.documentReplicationPublisher()`, which are worth considering as the app grows:
+>
+> - **`documentChangePublisher(for:)`** would make the [ItemDetail](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Views/Components/ItemDetail.swift) view live.  It currently takes a snapshot of the task when it appears, so an edit arriving from another device while the view is open is not reflected until the view is reopened.  Subscribing to changes for that one document ID would keep the open view in step with the database.
+> - **`documentReplicationPublisher()`** reports the outcome of each document push or pull, including rejections.  A write that the Sync Function rejects - for example an attempt to modify a task owned by another user - is currently invisible to the app; subscribing would let it surface the failure to the user.
 >
 
 > [!IMPORTANT]
@@ -479,8 +485,6 @@ item.isComplete = isComplete
 item.summary = summary
 try collection.save(from: item)
 ```
-
-The earlier version of this app read the document into a MutableDocument with `doc.toMutable()` and set each field individually with `setBoolean` and `setString`, on the grounds that serializing a whole object to change two properties was wasteful. `save(from:)` writes the whole object instead, which keeps this function consistent with `addTask` and removes the last place where field names were repeated as string literals - at the cost of re-encoding the fields that did not change.
 
 The document is located by `item.id`, which is only populated because the query selects `meta().id AS id`. 
 ## Other Application Changes

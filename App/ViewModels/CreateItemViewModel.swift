@@ -14,7 +14,7 @@ class CreateItemViewModel {
 
     func createItem() async {
         await service.addTask(taskSummary: itemSummary)
-        //reset summary for next creation
+        // reset summary for next creation
         self.itemSummary = ""
     }
 }

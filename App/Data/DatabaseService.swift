@@ -3,41 +3,41 @@ import CouchbaseLiteSwift
 import Foundation
 
 public enum DatabaseState {
-    //database is not initialized
+    // database is not initialized
     case notInitialized
-    //Starting the Replicator Sync process
+    // Starting the Replicator Sync process
     case connecting
-    //The database has been opened and is ready for use.
+    // The database has been opened and is ready for use.
     case open
-    //Opening the database or the replicator sync failed
+    // Opening the database or the replicator sync failed
     case error(Error)
 }
 
 actor DatabaseService {
 
-    //scope and collection information
+    // scope and collection information
     fileprivate let _scopeName = "data"
     fileprivate let _taskCollectionName = "tasks"
 
-    //replicator management
+    // replicator management
     fileprivate var _replicator: Replicator? = nil
 
-    //Combine subscriptions owned by this service. `AnyCancellable` cancels its
-    //subscription when it is released, so there are no listener tokens to remove.
+    // Combine subscriptions owned by this service. `AnyCancellable` cancels its
+    // subscription when it is released, so there are no listener tokens to remove.
     fileprivate var cancellables = Set<AnyCancellable>()
 
-    //database information
+    // database information
     var database: Database? = nil
     var taskCollection: Collection? = nil
 
-    //cached queries
+    // cached queries
     var queryMyTasks: Query? = nil
     var queryAllTasks: Query? = nil
 
     init() {
-        //`Database.log` was removed in 4.0. Logging is now configured by
-        //assigning a sink to `LogSinks`; `LogSinks.file` can be set the same way
-        //to persist logs to disk.
+        // `Database.log` was removed in 4.0. Logging is now configured by
+        // assigning a sink to `LogSinks`; `LogSinks.file` can be set the same way
+        // to persist logs to disk.
         LogSinks.console = ConsoleLogSink(level: .debug)
     }
 
@@ -81,46 +81,29 @@ actor DatabaseService {
 
             app.setDatabaseState(.notInitialized)
 
-            //get santised username to use in database name
+            // get santised username to use in database name
             let username = user.username
                 .replacingOccurrences(of: "@", with: "-")
                 .replacingOccurrences(of: ".", with: "-")
             let databaseName = "tasks-\(username)"
 
-            //open database
+            // open database
             self.database = try Database(name: databaseName)
             if let db = self.database {
-                //get the collection - create collection with either create a collection
-                //or if it already exist, return the existing collection
+                // get the collection - create collection with either create a collection
+                // or if it already exist, return the existing collection
                 self.taskCollection = try db.createCollection(
                     name: _taskCollectionName, scope: _scopeName)
                 if let collection = self.taskCollection {
-                    //create index
+                    // create index
                     let indexConfig = ValueIndexConfiguration(["ownerId"])
                     try collection.createIndex(
                         withName: "idxTasksOwnerId", config: indexConfig)
 
-                    //create cache queries used for LiveQuery
-                    //
-                    //`meta().id AS id` is selected explicitly so that the
-                    //`@DocumentID` property on `Item` can be populated - the
-                    //document ID lives in the document's metadata, not its body,
-                    //so `SELECT *` would not return it.
-                    //
-                    //Naming the columns (rather than using `SELECT *`) also means
-                    //each result row maps directly onto `Item`, with no wrapper
-                    //object needed to unwrap a `SELECT *` alias.
-                    let selectClause =
-                        "SELECT meta().id AS id, summary, isComplete, ownerId "
-                        + "FROM data.tasks "
-                    self.queryAllTasks = try db.createQuery(selectClause)
+                    // create cache queries used for LiveQuery
+                    try createTaskQueries(in: db, for: user)
 
-                    var queryString = selectClause
-                    queryString.append("WHERE ownerId = '\(user.username)' ")
-                    queryString.append("ORDER BY META().id ASC")
-                    self.queryMyTasks = try db.createQuery(queryString)
-
-                    //setup replicator
+                    // setup replicator
                     guard let targetUrl = URL(string: app.appConfig.endpointUrl)
                     else {
                         app.error = InvalidEndpointUrl(
@@ -129,30 +112,30 @@ actor DatabaseService {
                     }
                     let targetEndpoint = URLEndpoint(url: targetUrl)
 
-                    //configure the collection to sync
+                    // configure the collection to sync
                     //
-                    //In 4.0 the collection moved *into* `CollectionConfiguration`
-                    //and `ReplicatorConfiguration.collections` became read-only,
-                    //so collections are passed to the initializer instead of being
-                    //added afterwards - `addCollection` was removed.
+                    // In 4.0 the collection moved *into* `CollectionConfiguration`
+                    // and `ReplicatorConfiguration.collections` became read-only,
+                    // so collections are passed to the initializer instead of being
+                    // added afterwards - `addCollection` was removed.
                     let collectionConfig = CollectionConfiguration(
                         collection: collection)
 
-                    //create replicator config
+                    // create replicator config
                     var config = ReplicatorConfiguration(
                         collections: [collectionConfig], target: targetEndpoint)
                     config.replicatorType = .pushAndPull
                     config.continuous = true
 
-                    //add authentication
+                    // add authentication
                     let auth = BasicAuthenticator(
                         username: user.username, password: user.password)
                     config.authenticator = auth
 
-                    //create the replicator
+                    // create the replicator
                     self._replicator = Replicator(config: config)
 
-                    //observe replication status changes
+                    // observe replication status changes
                     self._replicator?.changePublisher()
                         .sink { (change) in
                             if let error = change.status.error {
@@ -174,6 +157,19 @@ actor DatabaseService {
         }
     }
 
+    /// Returns the signed-in user, or `nil` after setting an `InvalidCredentialsException`
+    /// in the app's error state.
+    ///
+    private func requireCurrentUser() -> User? {
+        guard let currentUser = app.currentUser
+        else {
+            app.setError(InvalidCredentialsException(
+                message: "User is not logged in."))
+            return nil
+        }
+        return currentUser
+    }
+
     /// Adds a task to the database with the specified summary.
     ///
     /// This function validates the currently logged-in user and adds a new task to the `taskCollection` if available.
@@ -191,13 +187,8 @@ actor DatabaseService {
     /// - SeeAlso: `InvalidCredentialsException`, `InvalidStateError`
     func addTask(taskSummary: String) {
         do {
-            //validate the user is logged in
-            guard let currentuser = app.currentUser
-            else {
-                app.setError(InvalidCredentialsException(
-                    message: "User is not logged in."))
-                return
-            }
+            // validate the user is logged in
+            guard let currentuser = requireCurrentUser() else { return }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -208,9 +199,9 @@ actor DatabaseService {
                 isComplete: false, summary: taskSummary,
                 ownerId: currentuser.username)
 
-            //`save(from:)` encodes the Codable object directly. `task.id` is nil
-            //here, so Couchbase Lite generates a document ID and writes it back
-            //to the `@DocumentID` property.
+            // `save(from:)` encodes the Codable object directly. `task.id` is nil
+            // here, so Couchbase Lite generates a document ID and writes it back
+            // to the `@DocumentID` property.
             try collection.save(from: task)
 
         } catch {
@@ -244,26 +235,26 @@ actor DatabaseService {
     /// Deletes a specified task from the database.
     ///
     /// This function attempts to locate and delete a task document from the `taskCollection` based on the provided item's ID.
-    /// If the task collection or document is not available, it sets an appropriate error in the app's error state and
+    /// If the task collection is not available, it sets an appropriate error in the app's error state and
     /// exits early. Any other errors encountered during deletion are caught and handled.
+    ///
+    /// A document that no longer exists is treated as success rather than as an error: it may
+    /// have been deleted on another device and that deletion replicated to this one, in which
+    /// case the requested end state has already been reached.
     ///
     /// - Parameter item: An `Item` representing the task to be deleted. The function uses the `id` property of the `Item`
     ///   to locate the corresponding document in the database.
     ///
     /// - Important: Ensure that the `taskCollection` is properly initialized and accessible before calling this function.
-    ///   If the `taskCollection` or the document does not exist, an `InvalidStateError` is set in the app's error state.
+    ///   If the `taskCollection` does not exist, or the document belongs to another user, an `InvalidStateError` is set
+    ///   in the app's error state.
     ///
     /// - Throws: An error if there is an issue retrieving or deleting the document in the collection.
     ///
     /// - SeeAlso: `InvalidStateError`
     func deleteTask(item: Item) {
         do {
-            guard let currentuser = app.currentUser
-            else {
-                app.setError(InvalidCredentialsException(
-                    message: "User is not logged in."))
-                return
-            }
+            guard let currentuser = requireCurrentUser() else { return }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -276,17 +267,21 @@ actor DatabaseService {
                     message: "item has not been saved and has no document id"))
                 return
             }
-            //Read the stored document to verify ownership before deleting. The
-            //Codable `delete(for:)` API never touches the stored document, so this
-            //check has to be made explicitly.
+            // Read the stored document to verify ownership before deleting.
             //
-            //Compared against the currently logged-in user, not `item.ownerId` -
-            //`item` was decoded from this same document, so comparing to
-            //`item.ownerId` would just compare the document to itself and never
-            //reject anything.
+            // Neither delete API validates the stored document, so ownership cannot be
+            // enforced by the delete call itself - it has to be checked here.
+            //
+            // Compared against the currently logged-in user, not `item.ownerId` -
+            // `item` was decoded from this same document, so comparing to
+            // `item.ownerId` would just compare the document to itself and never
+            // reject anything.
             guard let doc = try collection.document(id: documentId)
             else {
-                app.setError(InvalidStateError(message: "document not found"))
+                // The document is already gone - most likely deleted on another device
+                // with that deletion pulled down by replication. The caller asked for
+                // it to be deleted and it is, so there is nothing to do and nothing to
+                // report.
                 return
             }
             let ownerId = doc.string(forKey: "ownerId")
@@ -294,10 +289,47 @@ actor DatabaseService {
                 throw InvalidStateError(
                     message: "document does not belong to current user")
             }
-            try collection.delete(for: item)
+            // Deleted through the `Document` already read above rather than through the
+            // Codable `delete(for:)`. No extra read is needed since the ownership check
+            // has the document in hand, and this form is idempotent: if replication
+            // removes the document in the window between the check and this call, the
+            // delete still succeeds. `delete(for:)` instead fails that race with
+            // "Cannot delete a document that has not yet been saved."
+            try collection.delete(document: doc)
         } catch {
             app.setError(error)
         }
+    }
+
+    /// Builds the two cached queries that back the live task list.
+    ///
+    /// `meta().id AS id` is selected explicitly so that the `@DocumentID` property on
+    /// `Item` can be populated - the document ID lives in the document's metadata, not
+    /// its body, so `SELECT *` would not return it.
+    ///
+    /// Naming the columns (rather than using `SELECT *`) also means each result row maps
+    /// directly onto `Item`, with no wrapper object needed to unwrap a `SELECT *` alias.
+    ///
+    /// Called while the database is being opened rather than lazily from `tasksQuery`,
+    /// because a `Query` is bound to the `Database` it was created from and `queryMyTasks`
+    /// filters on the user that database was opened for. Building them here keeps both
+    /// tied to the same lifetime as the database itself.
+    ///
+    /// - Parameters:
+    ///   - db: The database the queries are created against.
+    ///   - user: The signed-in user, whose `username` scopes `queryMyTasks`.
+    ///
+    /// - Throws: An error if either query fails to compile.
+    private func createTaskQueries(in db: Database, for user: User) throws {
+        let selectClause =
+            "SELECT meta().id AS id, summary, isComplete, ownerId " +
+            "FROM data.tasks "
+        self.queryAllTasks = try db.createQuery(selectClause)
+
+        var queryString = selectClause
+        queryString.append("WHERE ownerId = '\(user.username)' ")
+        queryString.append("ORDER BY META().id ASC")
+        self.queryMyTasks = try db.createQuery(queryString)
     }
 
     /// Returns the cached live query for the given subscription type.
@@ -363,12 +395,7 @@ actor DatabaseService {
     /// - Throws: If an error occurs during document retrieval or saving, it is caught and passed to the `app.setError` function to handle the error.
     func updateItem(item: Item, isComplete: Bool, summary: String) {
         do {
-            guard let currentuser = app.currentUser
-            else {
-                app.setError(InvalidCredentialsException(
-                    message: "User is not logged in."))
-                return
-            }
+            guard let currentuser = requireCurrentUser() else { return }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -381,14 +408,17 @@ actor DatabaseService {
                     message: "item has not been saved and has no document id"))
                 return
             }
-            //Read the stored document to verify ownership before updating. The
-            //Codable `save(from:)` API never touches the stored document, so this
-            //check has to be made explicitly.
+            // Read the stored document to verify ownership before updating.
             //
-            //Compared against the currently logged-in user, not `item.ownerId` -
-            //`item` was decoded from this same document, so comparing to
-            //`item.ownerId` would just compare the document to itself and never
-            //reject anything.
+            // `save(from:)` writes the encoded object to the document ID taken from the
+            // object's `@DocumentID`. It does not compare the object against what is
+            // already stored there, so on its own it would let one user's write land on
+            // another user's task - the check has to be made here.
+            //
+            // Compared against the currently logged-in user, not `item.ownerId` -
+            // `item` was decoded from this same document, so comparing to
+            // `item.ownerId` would just compare the document to itself and never
+            // reject anything.
             guard let doc = try collection.document(id: documentId)
             else {
                 app.setError(InvalidStateError(message: "document not found"))

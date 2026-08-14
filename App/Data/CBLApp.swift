@@ -2,12 +2,6 @@ import Foundation
 import Observation
 
 /// Application-wide state.
-///
-/// `@Observable` replaces `ObservableObject` + `@Published`: every stored `var`
-/// is tracked individually, and a view is invalidated only by the properties it
-/// actually reads in its `body`. Because tracking is per-property rather than
-/// per-object, this works even though `app` is a plain global - views do not need
-/// to hold it in a property wrapper to observe it.
 @Observable
 class CBLApp {
     var currentUser: User? = nil

@@ -50,7 +50,18 @@ class ItemsViewModel {
 
         guard let query = await service.tasksQuery(
             subscriptionType: subscriptionType)
-        else { return }
+        else {
+            // The cached queries are created while the database is being opened, and
+            // this view model is only reachable once `databaseState` is `.open`, so a
+            // nil query means that invariant has broken rather than a condition the
+            // app should expect. `assertionFailure` traps in debug builds to surface
+            // it, and is compiled out of release builds - where returning leaves the
+            // list empty instead of crashing.
+            assertionFailure(
+                "No cached query for subscriptionType '\(subscriptionType)' - "
+                + "the database should have been initialized before observing tasks")
+            return
+        }
 
         query.changePublisher()
             .map { change -> [Item] in
