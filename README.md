@@ -143,8 +143,6 @@ Three details about this class are worth calling out:
 - **`Item` has to be a `class`, not a `struct`.** The Codable document APIs (`Collection.save(from:)`, `Collection.delete(for:)`) are constrained to `AnyObject`; the SDK declares `typealias DocumentCodable = Codable & AnyObject`.
 - **`isComplete` is optional (`Bool?`).** Swift's generated decoder fails outright if a key for a non-optional property is missing, and because a result set is decoded in a single `data(as:)` call, one document without `isComplete` would fail the whole batch and leave the list empty. Optional lets those documents decode, with `nil` treated as "not complete" where it is displayed.
 
-An earlier version of this app carried an `ItemDao` wrapper to unwrap `SELECT *` query results and a hand-written `toJSON()` method. Naming the query columns and using the Codable APIs made both unnecessary, and they were removed.
-
 ## Database Service 
 
 A new [DatabaseService](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift) was created to handle interactions between the Couchbase Lite Database, Collection, and Replicator and the rest of the application.  
@@ -219,7 +217,7 @@ self.queryMyTasks = try db.createQuery(queryString)
 ```
 
 > [!IMPORTANT]
-> The columns are named explicitly rather than using `SELECT *`, and `meta().id AS id` is selected deliberately. A document's ID lives in its metadata, not in its body, so `SELECT *` does not return it and the `@DocumentID` property on `Item` would silently decode as `nil`. Every code path that needs the document ID afterwards - `deleteTask` and `updateItem` both do - would then fail. Naming the columns also means each result row maps straight onto `Item`, which is what removed the need for the `ItemDao` wrapper.
+> The columns are named explicitly rather than using `SELECT *`, and `meta().id AS id` is selected deliberately. A document's ID lives in its metadata, not in its body, so `SELECT *` does not return it and the `@DocumentID` property on `Item` would silently decode as `nil`. Every code path that needs the document ID afterwards - `deleteTask` and `updateItem` both do - would then fail. Naming the columns also means each result row maps straight onto `Item`, with no wrapper object needed to unwrap a `SELECT *` alias.
 >
 
 Caching queries aren't required, but can save on resources if the same query is run multiple times. 
@@ -271,7 +269,7 @@ self._replicator?.changePublisher()
   .store(in: &cancellables)
 ```
 
-The earlier version of this app called `addChangeListener`, held on to the returned `ListenerToken`, and removed it by hand in `close()`. The publisher replaces all of that. `store(in:)` hands the subscription to a `Set<AnyCancellable>` owned by the service, and releasing that set cancels the underlying listener:
+`store(in:)` hands the subscription to a `Set<AnyCancellable>` owned by the service, and releasing that set cancels the underlying listener, so there is no token to track:
 
 ```swift
 //Combine subscriptions owned by this service. `AnyCancellable` cancels its
@@ -289,12 +287,7 @@ Publishers also deliver on the main queue by default, so the `DispatchQueue.main
 The [addTask function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift) was created to add a task to the CouchbaseLite Database using the Codable API.  The method is shown below:
 
 ```swift
-guard let currentuser = app.currentUser
-else {
-  app.setError(InvalidCredentialsException(
-    message: "User is not logged in."))
-  return
-}
+guard let currentuser = requireCurrentUser() else { return }
 guard let collection = taskCollection
 else {
   app.setError(InvalidStateError(
@@ -308,9 +301,7 @@ let task = Item(
 
 try collection.save(from: task)
 ```
-`save(from:)` encodes the object and writes it in a single step. `task.id` is `nil` at this point, so Couchbase Lite generates a document ID and assigns it back to the `@DocumentID` property.  If an error occurs, `app.setError` is called with the exception that was thrown.
-
-The earlier version of this app serialized the object to a JSON string with a hand-written `toJSON()` method and wrapped it in a [MutableDocument](https://docs.couchbase.com/couchbase-lite/current/swift/document.html#create-a-document) before saving. Neither step is needed with the Codable API.
+`requireCurrentUser()` is a small private helper that returns the signed-in `User` or sets an `InvalidCredentialsException` and returns `nil`; it returns the user rather than a `Bool` because each caller needs the `username` as well as the check.  `save(from:)` encodes the object and writes it in a single step. `task.id` is `nil` at this point, so Couchbase Lite generates a document ID and assigns it back to the `@DocumentID` property.  If an error occurs, `app.setError` is called with the exception that was thrown.
 
 ### close method
 
@@ -453,12 +444,7 @@ Four details of this subscription are worth calling out:
 The updateItem function is used to update a task. The stored document is read back so that its owner can be checked, the new values are applied to the `Item`, and the object is written with the Codable `save(from:)` function. A security check was added so that only the owner of the task can update the task.
 
 ```swift
-guard let currentuser = app.currentUser
-else {
-  app.setError(InvalidCredentialsException(
-    message: "User is not logged in."))
-  return
-}
+guard let currentuser = requireCurrentUser() else { return }
 guard let collection = taskCollection
 else {
   app.setError(InvalidStateError(
