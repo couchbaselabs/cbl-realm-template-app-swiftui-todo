@@ -188,7 +188,7 @@ actor DatabaseService {
     func addTask(taskSummary: String) {
         do {
             // validate the user is logged in
-            guard let currentuser = requireCurrentUser() else { return }
+            guard let currentUser = requireCurrentUser() else { return }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -197,7 +197,7 @@ actor DatabaseService {
             }
             let task = Item(
                 isComplete: false, summary: taskSummary,
-                ownerId: currentuser.username)
+                ownerId: currentUser.username)
 
             // `save(from:)` encodes the Codable object directly. `task.id` is nil
             // here, so Couchbase Lite generates a document ID and writes it back
@@ -254,7 +254,7 @@ actor DatabaseService {
     /// - SeeAlso: `InvalidStateError`
     func deleteTask(item: Item) {
         do {
-            guard let currentuser = requireCurrentUser() else { return }
+            guard let currentUser = requireCurrentUser() else { return }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -285,7 +285,7 @@ actor DatabaseService {
                 return
             }
             let ownerId = doc.string(forKey: "ownerId")
-            if ownerId != currentuser.username {
+            if ownerId != currentUser.username {
                 throw InvalidStateError(
                     message: "document does not belong to current user")
             }
@@ -395,7 +395,7 @@ actor DatabaseService {
     /// - Throws: If an error occurs during document retrieval or saving, it is caught and passed to the `app.setError` function to handle the error.
     func updateItem(item: Item, isComplete: Bool, summary: String) {
         do {
-            guard let currentuser = requireCurrentUser() else { return }
+            guard let currentUser = requireCurrentUser() else { return }
             guard let collection = taskCollection
             else {
                 app.setError(InvalidStateError(
@@ -425,7 +425,7 @@ actor DatabaseService {
                 return
             }
             let ownerId = doc.string(forKey: "ownerId")
-            if ownerId != currentuser.username {
+            if ownerId != currentUser.username {
                 throw InvalidStateError(
                     message: "document does not belong to current user")
             }

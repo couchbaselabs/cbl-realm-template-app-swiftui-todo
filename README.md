@@ -287,7 +287,7 @@ Publishers also deliver on the main queue by default, so the `DispatchQueue.main
 The [addTask function](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/App/Data/DatabaseService.swift) was created to add a task to the CouchbaseLite Database using the Codable API.  The method is shown below:
 
 ```swift
-guard let currentuser = requireCurrentUser() else { return }
+guard let currentUser = requireCurrentUser() else { return }
 guard let collection = taskCollection
 else {
   app.setError(InvalidStateError(
@@ -297,7 +297,7 @@ else {
 let task = Item(
   isComplete: false,
   summary: taskSummary,
-  ownerId: currentuser.username)
+  ownerId: currentUser.username)
 
 try collection.save(from: task)
 ```
@@ -347,7 +347,7 @@ The deleteTask method removes a task from the database.  The stored document is 
 ```swift
 func deleteTask(item: Item) {
   do {
-    guard let currentuser = requireCurrentUser() else { return }
+    guard let currentUser = requireCurrentUser() else { return }
     guard let collection = taskCollection
     else {
       app.setError(InvalidStateError(
@@ -366,7 +366,7 @@ func deleteTask(item: Item) {
       return
     }
     let ownerId = doc.string(forKey: "ownerId")
-    if ownerId != currentuser.username {
+    if ownerId != currentUser.username {
       throw InvalidStateError(
         message: "document does not belong to current user")
     }
@@ -444,7 +444,7 @@ Four details of this subscription are worth calling out:
 The updateItem function is used to update a task. The stored document is read back so that its owner can be checked, the new values are applied to the `Item`, and the object is written with the Codable `save(from:)` function. A security check was added so that only the owner of the task can update the task.
 
 ```swift
-guard let currentuser = requireCurrentUser() else { return }
+guard let currentUser = requireCurrentUser() else { return }
 guard let collection = taskCollection
 else {
   app.setError(InvalidStateError(
@@ -463,7 +463,7 @@ else {
   return
 }
 let ownerId = doc.string(forKey: "ownerId")
-if ownerId != currentuser.username {
+if ownerId != currentUser.username {
   throw InvalidStateError(
     message: "document does not belong to current user")
 }
