@@ -1,22 +1,24 @@
 import Foundation
+import Observation
 
+@Observable
 @MainActor
-class LoginViewModel : ObservableObject {
+class LoginViewModel {
     let service: DatabaseService
-    
-    @Published var email = ""
-    @Published var password = ""
-    @Published var isLoggingIn = false
-    
+
+    var email = ""
+    var password = ""
+    var isLoggingIn = false
+
     init(_ service:DatabaseService) {
         self.service = service
     }
-    
+
     func setDefaultUsernamePassword() {
         email = "demo1@example.com"
         password = "P@ssw0rd12"
     }
-    
+
     func login() async throws  {
         do {
             self.isLoggingIn = true
@@ -33,5 +35,5 @@ class LoginViewModel : ObservableObject {
             throw error
         }
     }
-    
+
 }

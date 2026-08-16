@@ -25,6 +25,14 @@ Click the Create button to create the new Scope and Collection.
 
 Once you have followed the directions for setting up your bucket, follow the [directions for setting up App Services](https://docs.couchbase.com/cloud/get-started/create-account.html#app-services).
 
+> [!IMPORTANT]
+> Select an App Services version of **4.0 or later**.  This app uses Couchbase Lite 4.1, which negotiates a replication protocol (`BLIP_3+CBMobile_4`) that only App Services 4.0 and later support.  
+>
+> To check the version of an App Endpoint you have already created, open its Public Connection URL over HTTPS in a browser - for example `https://<your-endpoint-host>:4984/` - which reports the Sync Gateway version it is running.
+>
+> If only a 3.x App Service is available to you, use Couchbase Lite 3.3.x in the app instead.  See the [Requirements](./README.md#requirements) section of the README.
+>
+
 ## Setup App Services Endpoint
 
 Click the App Services tab and select your created App Service from the Setup App Service Instance step.  The App Endpoints listing should appear.  Click on the + Create App Endpoint to create a new endpoint.
@@ -42,7 +50,7 @@ Click the Create button to create the new App Endpoint.  Note it may take a few 
 
 The [Access Control and Data Validation](https://docs.couchbase.com/cloud/app-services/deployment/access-control-data-validation.html) is used to setup access control policies for the App Endpoint. In the case of the app, [script](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/sync.js) specifies the policies to ensure that only the task owner can update corresponding task, while allowing a user to read all tasks.
 
-From the App Endpoints list, click on your newly created App Endpoint `tasks`.  From the Access Control and Validation screen, click the linked collections `tasks`.  Follow the following steps:
+From the App Endpoints list, click on your newly created App Endpoint `tasks`.  Click the **Security** tab, select **Access and Validation** from the navigation menu on the left, and then click the linked collection `tasks`.  Follow the following steps:
 
 - Click the Import from File button.  
 - Browse to the repo where you downloaded the code and select the [sync.js](https://github.com/couchbaselabs/cbl-realm-template-app-swiftui-todo/blob/main/sync.js) file located in the root of the project.  Click the Import button to import the Sync Function. 
@@ -78,4 +86,11 @@ Copy the Public Connection URL that is provided.  This will be used in the mobil
 
 Now open the `capellaConfig.plist` file, which is located in the App folder.
 
-Update the `endpointUrl` value with the Public Connection URL you copied from the App Endpoint.  
+Replace the placeholder `endpointUrl` value with the Public Connection URL you copied from the App Endpoint:
+
+```xml
+<key>endpointUrl</key>
+<string>wss://&lt;your-endpoint-host&gt;:4984/tasks</string>
+```
+
+The app cannot sync until this placeholder is replaced.  

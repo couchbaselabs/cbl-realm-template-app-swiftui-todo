@@ -4,7 +4,7 @@ public class AuthenticationService : NSObject {
     
     private override init () { }
     
-    //create a singleton
+    // Create a singleton
     static let shared:AuthenticationService = {
         let instance = AuthenticationService()
         return instance
@@ -18,7 +18,7 @@ public class AuthenticationService : NSObject {
         guard isUrlReachable(urlString: checkUrl) else {
             throw ConnectionException(message: "Could not reach the endpoint URL.")
         }
-        //fix issue wit 401 when you don't have / at the end of the REST API
+        // Fix issue wit 401 when you don't have / at the end of the REST API
         let fixedHttpsUrl = httpsUrl + "/"
         
         guard let url = URL(string: fixedHttpsUrl) else {
@@ -33,7 +33,7 @@ public class AuthenticationService : NSObject {
         request.setValue("Basic \(encodedAuth)", forHTTPHeaderField: "Authorization")
         
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-        //let (data, response) = try await URLSession.shared.data(for: request)
+        // let (data, response) = try await URLSession.shared.data(for: request)
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -74,7 +74,7 @@ public class AuthenticationService : NSObject {
         return isReachable
     }
     
-    //debug headers
+    // Debug headers
     private static func printRequestHeaders(_ request: URLRequest) {
         if let headers = request.allHTTPHeaderFields {
             for (key, value) in headers {

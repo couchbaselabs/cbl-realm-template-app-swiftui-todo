@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/couchbase/couchbase-lite-swift-ee.git",
       "state" : {
-        "revision" : "9f9059492b0e62de848db953addbca5e1b494879",
-        "version" : "3.2.0"
+        "revision" : "b1b83765acae7f1930346189c3166f0cdee62fab",
+        "version" : "4.1.0"
       }
     }
   ],

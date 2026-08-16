@@ -1,8 +1,10 @@
 import Foundation
+import Observation
 
+@Observable
 @MainActor
-class CreateItemViewModel: ObservableObject {
-    @Published var itemSummary = ""
+class CreateItemViewModel {
+    var itemSummary = ""
 
     let service: DatabaseService
 
@@ -12,7 +14,7 @@ class CreateItemViewModel: ObservableObject {
 
     func createItem() async {
         await service.addTask(taskSummary: itemSummary)
-        //reset summary for next creation
+        // reset summary for next creation
         self.itemSummary = ""
     }
 }

@@ -5,12 +5,17 @@ struct ItemsView: View {
     @Binding var showMyItems: Bool
     @Binding var isInOfflineMode: Bool
     var leadingBarButton: AnyView?
-    
-    @EnvironmentObject var errorHandler: ErrorHandler
-    @EnvironmentObject var viewModel: ItemsViewModel
-    
+
+    @Environment(ErrorHandler.self) private var errorHandler
+    @Environment(ItemsViewModel.self) private var viewModel
+
     var body: some View {
-        NavigationView {
+        // `@Environment` hands back the object but not bindings into it.
+        // `@Bindable` wraps it locally so `$viewModel.someProperty` works, which
+        // is what `@EnvironmentObject` used to provide directly.
+        @Bindable var viewModel = viewModel
+
+        return NavigationView {
             ZStack {
                 VStack {
                     if viewModel.isInCreateItemView {
@@ -31,7 +36,7 @@ struct ItemsView: View {
                             }
                         }
                         isInOfflineMode = !isInOfflineMode
-                        
+
                     } label: {
                         isInOfflineMode ? Image(systemName: "wifi.slash") : Image(systemName: "wifi")
                     }
@@ -58,7 +63,7 @@ struct ItemsView: View {
                             }
                                 .padding()
                                 .multilineTextAlignment(.center)
-                            
+
                         )
                 }
             }

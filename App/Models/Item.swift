@@ -1,84 +1,36 @@
+import CouchbaseLiteSwift
 import Foundation
 
-class ItemDao : Codable {
-    var item: Item
-    
-    init (item: Item){
-        self.item = item
-    }
-    
-    convenience init?(json: String) {
-        guard let data = json.data(using: .utf8) else { return nil }
-        do {
-            let item = try JSONDecoder().decode(ItemDao.self, from: data)
-            self.init(item: item.item)
-        } catch {
-            print ("ItemDao Error Init: \(error)")
-            return nil
-        }
-    }
-}
+/// A single to-do task.
+///
+/// `Codable` conformance is synthesized by the compiler. The property names match
+/// the column aliases selected by the queries in `DatabaseService`, so no
+/// `CodingKeys` mapping is required.
+class Item: Codable, Identifiable {
 
-class Item : Codable, Identifiable {
-    var id: String
-    var isComplete: Bool = false
+    /// Bound to the document's *metadata* ID rather than to a field in the document
+    /// body, via the `@DocumentID` property wrapper.
+    ///
+    /// This is `nil` for an item that has not been saved yet; Couchbase Lite assigns
+    /// an ID on save. When an item is decoded from a query result, the value comes
+    /// from the `meta().id AS id` column — which is why that column must be present
+    /// in every query that produces an `Item`.
+    @DocumentID var id: String?
+
+    /// Optional so that a document written without this field still decodes,
+    /// rather than failing the whole row.
+    var isComplete: Bool?
+
     var summary: String
     var ownerId: String
-    
-    init(id: String = UUID().uuidString.lowercased(),
-         isComplete: Bool = false,
+
+    init(id: String? = nil,
+         isComplete: Bool? = false,
          summary: String,
          ownerId: String) {
         self.id = id
         self.isComplete = isComplete
         self.summary = summary
         self.ownerId = ownerId
-    }
-
-    // Initialize from JSON string
-    convenience init?(json: String) {
-        guard let data = json.data(using: .utf8) else { return nil }
-        do {
-            let item = try JSONDecoder().decode(Item.self, from: data)
-            self.init(id: item.id, isComplete: item.isComplete, summary: item.summary, ownerId: item.ownerId)
-        } catch {
-            return nil
-        }
-    }
-    
-    // Custom decoding initializer
-    required init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decode(String.self, forKey: .id)
-        self.summary = try container.decode(String.self, forKey: .summary)
-        self.ownerId = try container.decode(String.self, forKey: .ownerId)
-        // Provide a default value for isComplete if it is missing
-        self.isComplete = try container.decodeIfPresent(Bool.self, forKey: .isComplete) ?? false
-    }
-    
-    // Encoding function (no change needed)
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(isComplete, forKey: .isComplete)
-        try container.encode(summary, forKey: .summary)
-        try container.encode(ownerId, forKey: .ownerId)
-    }
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case isComplete
-        case summary
-        case ownerId
-    }
-    
-    // Serialize to JSON string
-    func toJSON() -> String? {
-        do {
-            let data = try JSONEncoder().encode(self)
-            return String(data: data, encoding: .utf8)
-        } catch {
-            return nil
-        }
     }
 }

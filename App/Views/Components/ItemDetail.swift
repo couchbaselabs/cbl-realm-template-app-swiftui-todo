@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Show a detail view of a task Item. User can edit the summary or mark the Item complete.
 struct ItemDetail: View {
-    @EnvironmentObject var viewModel:ItemDetailViewModel
+    @Environment(ItemDetailViewModel.self) private var viewModel
     @Environment(\.presentationMode) var presentationMode // Access the presentation mode
 
     
@@ -14,7 +14,7 @@ struct ItemDetail: View {
     
     init (item: Item){
         _summaryText = State(initialValue: item.summary)
-        _isCompleteToggleState = State(initialValue: item.isComplete)
+        _isCompleteToggleState = State(initialValue: item.isComplete ?? false)
         _item = State(initialValue: item)
     }
     

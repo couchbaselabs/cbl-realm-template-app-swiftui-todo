@@ -1,10 +1,13 @@
 import Foundation
+import Observation
 
-class CBLApp: ObservableObject {
-    @Published var currentUser: User? = nil
-    @Published var appConfig: AppConfig
-    @Published var error: Error? = nil
-    @Published var databaseState: DatabaseState = .notInitialized
+/// Application-wide state.
+@Observable
+class CBLApp {
+    var currentUser: User? = nil
+    var appConfig: AppConfig
+    var error: Error? = nil
+    var databaseState: DatabaseState = .notInitialized
     
     init(configuration: AppConfig){
         appConfig = configuration
